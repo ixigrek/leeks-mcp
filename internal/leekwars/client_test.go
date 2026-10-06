@@ -159,3 +159,17 @@ func TestPostReportsAPIErrorWithoutLeakingToken(t *testing.T) {
 		t.Fatalf("le token fuite dans l'erreur : %s", msg)
 	}
 }
+
+func TestPostUnquotesBareStringErrorBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`"error_fight_no_such_team"`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "")
+	_, err := c.Post(context.Background(), "garden/start-team-fight", map[string]any{})
+	if err == nil || !strings.HasSuffix(err.Error(), "HTTP 404 : error_fight_no_such_team") {
+		t.Fatalf("erreur = %v", err)
+	}
+}

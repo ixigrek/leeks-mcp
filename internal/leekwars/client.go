@@ -82,6 +82,11 @@ func (c *Client) do(ctx context.Context, method, path string, body io.Reader, co
 	if msg, failed := apiError(data); failed || resp.StatusCode != http.StatusOK {
 		if msg == "" {
 			msg = strings.TrimSpace(string(data))
+			// Certains échecs (garden/start-*) renvoient une simple chaîne JSON.
+			var bare string
+			if json.Unmarshal(data, &bare) == nil {
+				msg = bare
+			}
 			if len(msg) > 200 {
 				msg = msg[:200]
 			}
