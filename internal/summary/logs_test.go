@@ -43,3 +43,30 @@ func TestLogsFilterByLeekID(t *testing.T) {
 		t.Fatalf("lignes inattendues pour 127085 : %+v", other.Turns)
 	}
 }
+
+func TestLogsKeepTurns(t *testing.T) {
+	s, err := Logs(fixture(t, "logs_53994496.json"), fixture(t, "fight_53994496.json"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.KeepTurns(3, 5)
+	if len(s.Turns) == 0 {
+		t.Fatal("aucun tour entre 3 et 5")
+	}
+	for _, turn := range s.Turns {
+		if turn.Turn < 3 || turn.Turn > 5 {
+			t.Fatalf("tour %d hors de 3-5", turn.Turn)
+		}
+	}
+}
+
+// Combat sans logs (53996176) : l'API renvoie [] et non {}.
+func TestLogsEmptyArray(t *testing.T) {
+	s, err := Logs(fixture(t, "logs_empty.json"), fixture(t, "fight_53994496.json"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Turns) != 0 || s.Turns == nil {
+		t.Fatalf("tours : %+v", s.Turns)
+	}
+}

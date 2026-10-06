@@ -256,6 +256,43 @@ func TestListFightsUsesFullHistory(t *testing.T) {
 	}
 }
 
+func TestReadToolsTurnRangeQueriesAndItems(t *testing.T) {
+	cs := session(t, "tok")
+	text, isErr := call(t, cs, "get_fight", map[string]any{"id": 53988601, "from_turn": 2, "to_turn": 3})
+	var fight struct {
+		Duration int `json:"duration"`
+		Turns    []struct {
+			Turn int `json:"turn"`
+		} `json:"turns"`
+	}
+	if err := json.Unmarshal([]byte(text), &fight); isErr || err != nil || fight.Duration != 41 ||
+		len(fight.Turns) != 2 || fight.Turns[0].Turn != 2 || fight.Turns[1].Turn != 3 {
+		t.Fatalf("get_fight tours 2-3 : %.300s", text)
+	}
+	text, isErr = call(t, cs, "get_fight_logs", map[string]any{"id": 53988601, "from_turn": 2, "to_turn": 2})
+	if isErr || !strings.Contains(text, `"turn":2`) || strings.Contains(text, `"turn":3`) || strings.Contains(text, `"turn":1,`) {
+		t.Fatalf("get_fight_logs tour 2 : %.300s", text)
+	}
+	text, isErr = call(t, cs, "get_fight_logs", map[string]any{"id": 53988601, "from_turn": 5, "to_turn": 2})
+	if !isErr || !strings.Contains(text, "invalides") {
+		t.Fatalf("tours inversés : %s", text)
+	}
+	text, isErr = call(t, cs, "get_item", map[string]any{"queries": []string{"laser", "25", "objet_imaginaire"}})
+	if isErr || !strings.Contains(text, `{"query":"laser","result":{"kind":"weapon"`) ||
+		!strings.Contains(text, `{"query":"25","result":{"ambiguous":true`) ||
+		!strings.Contains(text, `{"query":"objet_imaginaire","error":"aucune arme ni puce`) {
+		t.Fatalf("queries : %.600s", text)
+	}
+	text, isErr = call(t, cs, "get_item", map[string]any{})
+	if !isErr || !strings.Contains(text, "query ou queries requis") {
+		t.Fatalf("sans requête : %s", text)
+	}
+	text, isErr = call(t, cs, "get_leek", map[string]any{"id": 135146, "items": true})
+	if isErr || !strings.Contains(text, `"name":"leather_boots","details":{"kind":"chip"`) || !strings.Contains(text, `"effects":[`) {
+		t.Fatalf("get_leek items : %.600s", text)
+	}
+}
+
 func TestFightStats(t *testing.T) {
 	cs := session(t, "tok")
 	text, isErr := call(t, cs, "fight_stats", map[string]any{"id": 53988601, "leek_id": 135146})

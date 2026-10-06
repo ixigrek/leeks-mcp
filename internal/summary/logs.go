@@ -35,8 +35,8 @@ func Logs(logsJSON, fightJSON []byte, leekID int) (*LogsSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	var byFarmer map[string]map[string][][]json.RawMessage
-	if err := json.Unmarshal(logsJSON, &byFarmer); err != nil {
+	byFarmer, err := phpObject(logsJSON)
+	if err != nil {
 		return nil, fmt.Errorf("fight/get-logs : %w", err)
 	}
 
@@ -65,11 +65,19 @@ func Logs(logsJSON, fightJSON []byte, leekID int) (*LogsSummary, error) {
 		lines [][]json.RawMessage
 	}
 	var all []indexed
-	for _, byIndex := range byFarmer {
-		for key, lines := range byIndex {
+	for _, farmerJSON := range byFarmer {
+		byIndex, err := phpObject(farmerJSON)
+		if err != nil {
+			return nil, fmt.Errorf("fight/get-logs : %w", err)
+		}
+		for key, linesJSON := range byIndex {
 			idx, err := strconv.Atoi(key)
 			if err != nil {
 				continue
+			}
+			var lines [][]json.RawMessage
+			if err := json.Unmarshal(linesJSON, &lines); err != nil {
+				return nil, fmt.Errorf("fight/get-logs : %w", err)
 			}
 			all = append(all, indexed{idx, lines})
 		}
@@ -102,4 +110,29 @@ func Logs(logsJSON, fightJSON []byte, leekID int) (*LogsSummary, error) {
 		}
 	}
 	return s, nil
+}
+
+// KeepTurns ne garde que les tours from à to inclus (0 = sans borne).
+func (s *LogsSummary) KeepTurns(from, to int) {
+	kept := []LogTurn{}
+	for _, t := range s.Turns {
+		if inTurns(t.Turn, from, to) {
+			kept = append(kept, t)
+		}
+	}
+	s.Turns = kept
+}
+
+// phpObject lit un objet JSON indexé par clés ; l'API (PHP) renvoie un objet vide
+// sous la forme [] (combat sans logs, éleveur sans ligne).
+func phpObject(b []byte) (map[string]json.RawMessage, error) {
+	var arr []json.RawMessage
+	if json.Unmarshal(b, &arr) == nil && len(arr) == 0 {
+		return map[string]json.RawMessage{}, nil
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

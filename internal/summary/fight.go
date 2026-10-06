@@ -347,3 +347,19 @@ func (t *TurnSummary) entity(id int) *EntityTurn {
 	t.index[id] = len(t.Entities) - 1
 	return &t.Entities[len(t.Entities)-1]
 }
+
+// KeepTurns ne garde que les tours from à to inclus (0 = sans borne). Le filtre
+// s'applique après le résumé : durée, entités, PV de fin et morts restent complets.
+func (s *FightSummary) KeepTurns(from, to int) {
+	kept := []TurnSummary{}
+	for _, t := range s.Turns {
+		if inTurns(t.Turn, from, to) {
+			kept = append(kept, t)
+		}
+	}
+	s.Turns = kept
+}
+
+func inTurns(turn, from, to int) bool {
+	return turn >= from && (to == 0 || turn <= to)
+}
