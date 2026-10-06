@@ -47,11 +47,7 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 
 // Post appelle POST /api/<path> avec payload sérialisé en JSON et renvoie le corps brut.
 func (c *Client) Post(ctx context.Context, path string, payload any) ([]byte, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("POST %s : encodage : %w", path, err)
-	}
-	return c.do(ctx, http.MethodPost, path, bytes.NewReader(data), "application/json; charset=UTF-8")
+	return c.send(ctx, http.MethodPost, path, payload)
 }
 
 // do envoie la requête après passage par le limiteur, ajoute le Bearer et
@@ -125,4 +121,23 @@ func (c *Client) wait(ctx context.Context) error {
 	c.next = now.Add(minInterval)
 	c.mu.Unlock()
 	return nil
+}
+
+// Put appelle PUT /api/<path> avec payload sérialisé en JSON (loadout/update).
+func (c *Client) Put(ctx context.Context, path string, payload any) ([]byte, error) {
+	return c.send(ctx, http.MethodPut, path, payload)
+}
+
+// Delete appelle DELETE /api/<path> avec payload sérialisé en JSON, comme le
+// client officiel (loadout/delete).
+func (c *Client) Delete(ctx context.Context, path string, payload any) ([]byte, error) {
+	return c.send(ctx, http.MethodDelete, path, payload)
+}
+
+func (c *Client) send(ctx context.Context, method, path string, payload any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("%s %s : encodage : %w", method, path, err)
+	}
+	return c.do(ctx, method, path, bytes.NewReader(data), "application/json; charset=UTF-8")
 }
