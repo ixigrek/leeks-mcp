@@ -3,6 +3,7 @@ package leekwars
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,5 +172,43 @@ func TestPostUnquotesBareStringErrorBody(t *testing.T) {
 	_, err := c.Post(context.Background(), "garden/start-team-fight", map[string]any{})
 	if err == nil || !strings.HasSuffix(err.Error(), "HTTP 404 : error_fight_no_such_team") {
 		t.Fatalf("erreur = %v", err)
+	}
+}
+
+func TestRetriesOnceAfterRateLimit(t *testing.T) {
+	var hits int
+	var bodies []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		if hits == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			w.Write([]byte(`{"error":"rate_limit","limit":5,"retry_after":0.01}`))
+			return
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "tok")
+	body, err := c.Post(context.Background(), "loadout/apply", map[string]any{"set_id": 1})
+	if err != nil || string(body) != `{"ok":true}` {
+		t.Fatalf("réessai : %s, %v", body, err)
+	}
+	if hits != 2 || bodies[0] != bodies[1] || bodies[1] != `{"set_id":1}` {
+		t.Fatalf("%d requêtes, corps %q", hits, bodies)
+	}
+}
+
+func TestGivesUpAfterSecondRateLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		w.Write([]byte(`{"error":"rate_limit","retry_after":0.01}`))
+	}))
+	defer srv.Close()
+	_, err := NewClient(srv.URL, "tok").Get(context.Background(), "garden/get")
+	if err == nil || !strings.Contains(err.Error(), "HTTP 429") {
+		t.Fatalf("erreur 429 attendue : %v", err)
 	}
 }

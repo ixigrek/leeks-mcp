@@ -21,7 +21,7 @@ import (
 // typées méthode + chemin ; une route peut servir une séquence de fixtures (la
 // i-ème requête reçoit la i-ème, puis la dernière se répète), chacune précédée
 // d'un code HTTP optionnel ("404:fichier.json"). Les corps POST sont
-// enregistrés pour vérifier ce que les outils envoient.
+// (PUT, DELETE) enregistrés pour vérifier ce que les outils envoient.
 type fakeAPI struct {
 	*httptest.Server
 	mu    sync.Mutex
@@ -30,8 +30,9 @@ type fakeAPI struct {
 }
 
 type postRecord struct {
-	Path string
-	Body map[string]any
+	Method string
+	Path   string
+	Body   map[string]any
 }
 
 var fixtureRoutes = map[string][]string{
@@ -61,8 +62,8 @@ func newFakeAPI(t *testing.T, extra map[string][]string) *fakeAPI {
 		f.mu.Lock()
 		n := f.hits[key]
 		f.hits[key] = n + 1
-		if r.Method == http.MethodPost {
-			rec := postRecord{Path: r.URL.Path}
+		if r.Method != http.MethodGet {
+			rec := postRecord{Method: r.Method, Path: r.URL.Path}
 			json.NewDecoder(r.Body).Decode(&rec.Body)
 			f.posts = append(f.posts, rec)
 		}
@@ -100,6 +101,13 @@ func (f *fakeAPI) count(key string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.hits[key]
+}
+
+// writes renvoie, dans l'ordre, les requêtes d'écriture reçues.
+func (f *fakeAPI) writes() []postRecord {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]postRecord(nil), f.posts...)
 }
 
 func (f *fakeAPI) lastPost(t *testing.T) postRecord {
@@ -185,14 +193,14 @@ func TestToolsAreAnnotated(t *testing.T) {
 		if tool.Annotations == nil {
 			t.Fatalf("outil %s sans annotations", tool.Name)
 		}
-		write := strings.HasPrefix(tool.Name, "start_")
+		write := strings.HasPrefix(tool.Name, "start_") || strings.HasSuffix(tool.Name, "_loadout")
 		if tool.Annotations.ReadOnlyHint == write {
 			t.Fatalf("outil %s : ReadOnlyHint = %v", tool.Name, tool.Annotations.ReadOnlyHint)
 		}
 	}
 }
 
-func TestListsElevenTools(t *testing.T) {
+func TestListsFifteenTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -203,7 +211,8 @@ func TestListsElevenTools(t *testing.T) {
 		names[tool.Name] = true
 	}
 	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item",
-		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight"}
+		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight",
+		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout"}
 	if len(res.Tools) != len(want) {
 		t.Fatalf("%d outils, attendu %d : %v", len(res.Tools), len(want), names)
 	}
