@@ -1,4 +1,5 @@
-// leeks-mcp est un serveur MCP (stdio) en lecture seule pour l'API LeekWars.
+// leeks-mcp est un serveur MCP (stdio) pour l'API LeekWars : lecture des fiches
+// et rapports, lancement de combats.
 package main
 
 import (
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ixigrek/leeks-mcp/internal/leekwars"
 	"github.com/ixigrek/leeks-mcp/internal/summary"
@@ -43,19 +45,42 @@ type app struct {
 	items  *leekwars.ItemsLoader
 
 	mu     sync.Mutex
-	fights map[int][]byte // rapports fight/get déjà lus, par id
+	fights map[int][]byte // rapports fight/get terminés déjà lus, par id
+
+	pollInterval time.Duration // sondage d'un combat en génération (wait: true)
+	pollDeadline time.Duration
+}
+
+func newApp(client *leekwars.Client) *app {
+	return &app{
+		client:       client,
+		items:        leekwars.NewItemsLoader(client),
+		fights:       map[int][]byte{},
+		pollInterval: 2 * time.Second,
+		pollDeadline: 60 * time.Second,
+	}
 }
 
 func newServer(client *leekwars.Client) *mcp.Server {
-	a := &app{client: client, items: leekwars.NewItemsLoader(client), fights: map[int][]byte{}}
+	return newApp(client).server()
+}
+
+var (
+	readOnly = &mcp.ToolAnnotations{ReadOnlyHint: true}
+	launches = &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(true)}
+)
+
+func boolPtr(b bool) *bool { return &b }
+
+func (a *app) server() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "leekwars", Version: version}, nil)
 
-	mcp.AddTool(s, &mcp.Tool{Name: "get_leek", Description: "Fiche d'un poireau : niveau, stats, armes et puces équipées, IA, bilan et 10 derniers combats. Avec token : composants et capital."}, a.getLeek)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_farmer", Description: "Fiche d'un éleveur : poireaux, bilan ; avec token et sans id, l'éleveur du token avec habs, cristaux et inventaire non équipé."}, a.getFarmer)
-	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Description: "Derniers combats d'un poireau (id, date, résultat, adversaires), filtrables par résultat."}, a.listFights)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id."}, a.getItem)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_leek", Annotations: readOnly, Description: "Fiche d'un poireau : niveau, stats, armes et puces équipées, IA, bilan et 10 derniers combats. Avec token : composants et capital."}, a.getLeek)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_farmer", Annotations: readOnly, Description: "Fiche d'un éleveur : poireaux, bilan ; avec token et sans id, l'éleveur du token avec habs, cristaux et inventaire non équipé."}, a.getFarmer)
+	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Annotations: readOnly, Description: "Derniers combats d'un poireau (id, date, résultat, adversaires), filtrables par résultat."}, a.listFights)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id."}, a.getItem)
 	return s
 }
 
@@ -185,10 +210,19 @@ func (a *app) fightReport(ctx context.Context, id int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.cacheFight(id, body)
+	return body, nil
+}
+
+// cacheFight mémorise un rapport, seulement s'il est terminé : un combat encore en
+// génération serait sinon figé dans le cache pour toute la session.
+func (a *app) cacheFight(id int, body []byte) {
+	if st, err := summary.FightStatus(body); err != nil || st != summary.FightFinished {
+		return
+	}
 	a.mu.Lock()
 	a.fights[id] = body
 	a.mu.Unlock()
-	return body, nil
 }
 
 func (a *app) getFight(ctx context.Context, _ *mcp.CallToolRequest, in fightArgs) (*mcp.CallToolResult, any, error) {

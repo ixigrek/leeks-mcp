@@ -8,45 +8,107 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ixigrek/leeks-mcp/internal/leekwars"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// fakeAPI sert les fixtures de testdata/ comme l'API LeekWars.
-func fakeAPI(t *testing.T) *httptest.Server {
+// fakeAPI sert les fixtures de testdata/ comme l'API LeekWars. Les routes sont
+// typées méthode + chemin ; une route peut servir une séquence de fixtures (la
+// i-ème requête reçoit la i-ème, puis la dernière se répète). Les corps POST sont
+// enregistrés pour vérifier ce que les outils envoient.
+type fakeAPI struct {
+	*httptest.Server
+	mu    sync.Mutex
+	hits  map[string]int
+	posts []postRecord
+}
+
+type postRecord struct {
+	Path string
+	Body map[string]any
+}
+
+var fixtureRoutes = map[string][]string{
+	"GET /api/leek/get/135146":         {"leek_135146.json"},
+	"GET /api/leek/get-private/135146": {"leek_private_135146.json"},
+	"GET /api/farmer/get/128381":       {"farmer_128381.json"},
+	"GET /api/farmer/get-from-token":   {"farmer_token.json"},
+	"GET /api/weapon/get-all":          {"weapons.json"},
+	"GET /api/chip/get-all":            {"chips.json"},
+	"GET /api/fight/get/53988601":      {"fight_53988601.json"},
+	"GET /api/fight/get-logs/53988601": {"logs_53988601.json"},
+	"GET /api/boss/get-all":            {"bosses.json"},
+}
+
+func newFakeAPI(t *testing.T, extra map[string][]string) *fakeAPI {
 	t.Helper()
-	routes := map[string]string{
-		"/api/leek/get/135146":         "leek_135146.json",
-		"/api/leek/get-private/135146": "leek_private_135146.json",
-		"/api/farmer/get/128381":       "farmer_128381.json",
-		"/api/farmer/get-from-token":   "farmer_token.json",
-		"/api/weapon/get-all":          "weapons.json",
-		"/api/chip/get-all":            "chips.json",
-		"/api/fight/get/53988601":      "fight_53988601.json",
-		"/api/fight/get-logs/53988601": "logs_53988601.json",
+	routes := map[string][]string{}
+	for k, v := range fixtureRoutes {
+		routes[k] = v
 	}
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		name, ok := routes[r.URL.Path]
+	for k, v := range extra {
+		routes[k] = v
+	}
+	f := &fakeAPI{hits: map[string]int{}}
+	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Method + " " + r.URL.Path
+		f.mu.Lock()
+		n := f.hits[key]
+		f.hits[key] = n + 1
+		if r.Method == http.MethodPost {
+			rec := postRecord{Path: r.URL.Path}
+			json.NewDecoder(r.Body).Decode(&rec.Body)
+			f.posts = append(f.posts, rec)
+		}
+		f.mu.Unlock()
+		seq, ok := routes[key]
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(`{"success":false,"error":"not_found"}`))
 			return
 		}
-		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
+		if n >= len(seq) {
+			n = len(seq) - 1
+		}
+		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", seq[n]))
 		if err != nil {
 			t.Fatal(err)
 		}
 		w.Write(data)
 	}))
+	t.Cleanup(f.Close)
+	return f
 }
 
-func session(t *testing.T, token string) *mcp.ClientSession {
+func (f *fakeAPI) count(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.hits[key]
+}
+
+func (f *fakeAPI) lastPost(t *testing.T) postRecord {
 	t.Helper()
-	api := fakeAPI(t)
-	t.Cleanup(api.Close)
-	server := newServer(leekwars.NewClient(api.URL, token))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.posts) == 0 {
+		t.Fatal("aucun POST reçu")
+	}
+	return f.posts[len(f.posts)-1]
+}
+
+// sessionAPI ouvre une session MCP en mémoire sur une fausse API, avec des délais
+// de sondage raccourcis.
+func sessionAPI(t *testing.T, token string, extra map[string][]string) (*mcp.ClientSession, *fakeAPI) {
+	t.Helper()
+	api := newFakeAPI(t, extra)
+	a := newApp(leekwars.NewClient(api.URL, token))
+	a.pollInterval = 5 * time.Millisecond
+	a.pollDeadline = time.Second
+	server := a.server()
 	st, ct := mcp.NewInMemoryTransports()
 	ctx := context.Background()
 	if _, err := server.Connect(ctx, st, nil); err != nil {
@@ -57,6 +119,12 @@ func session(t *testing.T, token string) *mcp.ClientSession {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { cs.Close() })
+	return cs, api
+}
+
+func session(t *testing.T, token string) *mcp.ClientSession {
+	t.Helper()
+	cs, _ := sessionAPI(t, token, nil)
 	return cs
 }
 
@@ -73,6 +141,43 @@ func call(t *testing.T, cs *mcp.ClientSession, tool string, args map[string]any)
 		}
 	}
 	return sb.String(), res.IsError
+}
+
+func TestFightCacheSkipsPendingReports(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", map[string][]string{
+		"GET /api/fight/get/53988601": {"fight_pending.json", "fight_pending.json", "fight_53988601.json"},
+	})
+	for i := 0; i < 2; i++ {
+		text, isErr := call(t, cs, "get_fight", map[string]any{"id": 53988601, "raw": true})
+		if isErr || !strings.Contains(text, `"status":0`) {
+			t.Fatalf("rapport en attente attendu : %.200s", text)
+		}
+	}
+	text, isErr := call(t, cs, "get_fight", map[string]any{"id": 53988601, "raw": true})
+	if isErr || !strings.Contains(text, `"status":2`) {
+		t.Fatalf("rapport terminé attendu : %.200s", text)
+	}
+	call(t, cs, "get_fight", map[string]any{"id": 53988601})
+	if n := api.count("GET /api/fight/get/53988601"); n != 3 {
+		t.Fatalf("%d requêtes fight/get, attendu 3 (2 en attente non cachées, 1 terminée cachée)", n)
+	}
+}
+
+func TestToolsAreAnnotated(t *testing.T) {
+	cs := session(t, "tok")
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Annotations == nil {
+			t.Fatalf("outil %s sans annotations", tool.Name)
+		}
+		write := strings.HasPrefix(tool.Name, "start_")
+		if tool.Annotations.ReadOnlyHint == write {
+			t.Fatalf("outil %s : ReadOnlyHint = %v", tool.Name, tool.Annotations.ReadOnlyHint)
+		}
+	}
 }
 
 func TestListsSixTools(t *testing.T) {
