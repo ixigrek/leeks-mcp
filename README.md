@@ -8,11 +8,11 @@ Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de 
 |---|---|---|
 | `get_leek` | `id` | optionnel (ajoute composants et capital) |
 | `get_farmer` | `id` optionnel | requis si `id` absent (habs, cristaux, inventaire) |
-| `list_fights` | `leek_id`, `result` (`win`/`defeat`/`draw`), `limit` (10) | non |
+| `list_fights` | `leek_id`, `result` (`win`/`defeat`/`draw`), `limit` (10) ; historique complet (`history/get-leek-history`) | non |
 | `get_fight` | `id`, `leek_id` optionnel (ne garde que l'activité de ce poireau dans les tours) | oui |
 | `get_fight_logs` | `id`, `leek_id` optionnel | oui |
-| `get_item` | `query` : nom (`laser`, `sun spear`) ou id | non |
-| `get_garden` | `leek_id`, `composition_id` ou `farmer: true` (un seul) pour ajouter les adversaires proposés | oui |
+| `get_item` | `query` : nom (`laser`, `sun spear`) ou id (item d'une arme, id d'une puce comme dans `get_leek` ; à défaut id de rapport) | non |
+| `get_garden` | `leek_id`, `composition_id` et/ou `farmer: true` (combinables) pour ajouter les adversaires proposés, groupés par sélecteur | oui |
 | `start_solo_fight` | `leek_id`, `target_id` optionnel, `wait` | oui |
 | `start_farmer_fight` | `target_id` optionnel, `wait` | oui |
 | `start_team_fight` | `composition_id`, `target_id` optionnel, `wait` | oui |
@@ -23,7 +23,7 @@ Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de 
 | `apply_loadout` | `set_id`, `leek_id`, `use_restat` | oui |
 | `delete_loadout` | `set_id` | oui |
 
-Limites connues : `list_fights` ne voit que les 12 derniers combats renvoyés par `leek/get` ; les noms d'armes et de puces sont les clés anglaises de l'API.
+Limites connues : les noms d'armes et de puces sont les clés anglaises de l'API.
 
 ## Combats
 
