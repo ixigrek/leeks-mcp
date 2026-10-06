@@ -26,20 +26,21 @@ func TestGetGardenSummaryAndOpponents(t *testing.T) {
 		t.Fatalf("potager : %.300s", text)
 	}
 	text, isErr = call(t, cs, "get_garden", map[string]any{"leek_id": 135146})
-	if isErr || !strings.Contains(text, `"opponents_for":"leek 135146"`) || !strings.Contains(text, "Imarmaleek") {
+	if isErr || !strings.Contains(text, `"for":"leek 135146"`) || !strings.Contains(text, "Imarmaleek") {
 		t.Fatalf("adversaires solo : %.300s", text)
 	}
 	text, isErr = call(t, cs, "get_garden", map[string]any{"farmer": true})
-	if isErr || !strings.Contains(text, `"opponents_for":"farmer"`) || !strings.Contains(text, "Simon200079") {
+	if isErr || !strings.Contains(text, `"for":"farmer"`) || !strings.Contains(text, "Simon200079") {
 		t.Fatalf("adversaires éleveur : %.300s", text)
 	}
 	text, isErr = call(t, cs, "get_garden", map[string]any{"composition_id": 7})
-	if isErr || !strings.Contains(text, `"opponents_for":"composition 7"`) || !strings.Contains(text, "Potager Uni") {
+	if isErr || !strings.Contains(text, `"for":"composition 7"`) || !strings.Contains(text, "Potager Uni") {
 		t.Fatalf("adversaires équipe : %.300s", text)
 	}
-	text, isErr = call(t, cs, "get_garden", map[string]any{"leek_id": 135146, "farmer": true})
-	if !isErr {
-		t.Fatalf("un seul sélecteur attendu : %.300s", text)
+	text, isErr = call(t, cs, "get_garden", map[string]any{"leek_id": 135146, "composition_id": 7, "farmer": true})
+	if isErr || !strings.Contains(text, `"for":"leek 135146"`) || !strings.Contains(text, "Imarmaleek") ||
+		!strings.Contains(text, `"for":"composition 7"`) || !strings.Contains(text, `"for":"farmer"`) || !strings.Contains(text, "Simon200079") {
+		t.Fatalf("sélecteurs combinés : %.400s", text)
 	}
 	raw, isErr := call(t, cs, "get_garden", map[string]any{"raw": true})
 	if isErr || !strings.Contains(raw, `"max_solo_fights"`) {

@@ -20,33 +20,32 @@ type gardenArgs struct {
 }
 
 // gardenResult est la réponse de get_garden : l'état du potager et, à la demande,
-// les adversaires proposés pour un poireau, une composition ou l'éleveur.
+// les adversaires proposés pour un poireau, une composition et/ou l'éleveur.
 type gardenResult struct {
-	Garden       *summary.GardenSummary `json:"garden"`
-	OpponentsFor string                 `json:"opponents_for,omitempty"`
-	Opponents    []summary.Opponent     `json:"opponents,omitempty"`
+	Garden    *summary.GardenSummary `json:"garden"`
+	Opponents []opponentGroup        `json:"opponents,omitempty"`
+}
+
+// opponentGroup regroupe les adversaires proposés pour un sélecteur.
+type opponentGroup struct {
+	For       string             `json:"for"`
+	Opponents []summary.Opponent `json:"opponents"`
 }
 
 func (a *app) getGarden(ctx context.Context, _ *mcp.CallToolRequest, in gardenArgs) (*mcp.CallToolResult, any, error) {
 	if !a.client.HasToken() {
 		return fail(errNoToken)
 	}
-	var path, label string
-	selectors := 0
+	type selector struct{ path, label string }
+	var selectors []selector
 	if in.LeekID != 0 {
-		selectors++
-		path, label = "garden/get-leek-opponents/"+strconv.Itoa(in.LeekID), "leek "+strconv.Itoa(in.LeekID)
+		selectors = append(selectors, selector{"garden/get-leek-opponents/" + strconv.Itoa(in.LeekID), "leek " + strconv.Itoa(in.LeekID)})
 	}
 	if in.CompositionID != 0 {
-		selectors++
-		path, label = "garden/get-composition-opponents/"+strconv.Itoa(in.CompositionID), "composition "+strconv.Itoa(in.CompositionID)
+		selectors = append(selectors, selector{"garden/get-composition-opponents/" + strconv.Itoa(in.CompositionID), "composition " + strconv.Itoa(in.CompositionID)})
 	}
 	if in.Farmer {
-		selectors++
-		path, label = "garden/get-farmer-opponents", "farmer"
-	}
-	if selectors > 1 {
-		return fail(fmt.Errorf("un seul sélecteur d'adversaires à la fois : leek_id, composition_id ou farmer"))
+		selectors = append(selectors, selector{"garden/get-farmer-opponents", "farmer"})
 	}
 	body, err := a.client.Get(ctx, "garden/get")
 	if err != nil {
@@ -60,12 +59,12 @@ func (a *app) getGarden(ctx context.Context, _ *mcp.CallToolRequest, in gardenAr
 		return fail(err)
 	}
 	out := gardenResult{Garden: g}
-	if path != "" {
-		ops, err := a.opponents(ctx, path)
+	for _, sel := range selectors {
+		ops, err := a.opponents(ctx, sel.path)
 		if err != nil {
-			return fail(err)
+			return fail(fmt.Errorf("%s : %w", sel.label, err))
 		}
-		out.OpponentsFor, out.Opponents = label, ops
+		out.Opponents = append(out.Opponents, opponentGroup{For: sel.label, Opponents: ops})
 	}
 	return ok(out)
 }

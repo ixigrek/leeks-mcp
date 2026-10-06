@@ -143,25 +143,29 @@ func (it *Items) ChipNameByTemplate(template int) string {
 	return "chip_" + strconv.Itoa(template)
 }
 
-// Find cherche par identifiant numérique (arme : id ou item ; puce : id ou template) ou
-// par nom, sans tenir compte de la casse ni des séparateurs (« sun spear » = sun_spear).
+// Find cherche par nom, sans tenir compte de la casse ni des séparateurs
+// (« sun spear » = sun_spear), ou par identifiant numérique. Un nombre est d'abord
+// lu comme identifiant d'objet (item d'une arme, id d'une puce : ceux de leek/get,
+// de l'inventaire et des loadouts), espace où il est unique ; à défaut comme
+// identifiant de rapport (id d'une arme, template d'une puce).
 func (it *Items) Find(query string) []Match {
 	var out []Match
 	q := strings.TrimSpace(query)
 	if n, err := strconv.Atoi(q); err == nil {
-		seen := map[*Weapon]bool{}
-		for _, w := range []*Weapon{it.WeaponByID(n), it.WeaponByItem(n)} {
-			if w != nil && !seen[w] {
-				seen[w] = true
-				out = append(out, Match{Kind: "weapon", Weapon: w})
-			}
+		if w := it.WeaponByItem(n); w != nil {
+			out = append(out, Match{Kind: "weapon", Weapon: w})
 		}
-		seenChip := map[*Chip]bool{}
-		for _, c := range []*Chip{it.ChipByID(n), it.ChipByTemplate(n)} {
-			if c != nil && !seenChip[c] {
-				seenChip[c] = true
-				out = append(out, Match{Kind: "chip", Chip: c})
-			}
+		if c := it.ChipByID(n); c != nil {
+			out = append(out, Match{Kind: "chip", Chip: c})
+		}
+		if len(out) > 0 {
+			return out
+		}
+		if w := it.WeaponByID(n); w != nil {
+			out = append(out, Match{Kind: "weapon", Weapon: w})
+		}
+		if c := it.ChipByTemplate(n); c != nil {
+			out = append(out, Match{Kind: "chip", Chip: c})
 		}
 		return out
 	}

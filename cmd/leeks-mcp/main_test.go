@@ -36,15 +36,16 @@ type postRecord struct {
 }
 
 var fixtureRoutes = map[string][]string{
-	"GET /api/leek/get/135146":         {"leek_135146.json"},
-	"GET /api/leek/get-private/135146": {"leek_private_135146.json"},
-	"GET /api/farmer/get/128381":       {"farmer_128381.json"},
-	"GET /api/farmer/get-from-token":   {"farmer_token.json"},
-	"GET /api/weapon/get-all":          {"weapons.json"},
-	"GET /api/chip/get-all":            {"chips.json"},
-	"GET /api/fight/get/53988601":      {"fight_53988601.json"},
-	"GET /api/fight/get-logs/53988601": {"logs_53988601.json"},
-	"GET /api/boss/get-all":            {"bosses.json"},
+	"GET /api/leek/get/135146":                 {"leek_135146.json"},
+	"GET /api/leek/get-private/135146":         {"leek_private_135146.json"},
+	"GET /api/farmer/get/128381":               {"farmer_128381.json"},
+	"GET /api/farmer/get-from-token":           {"farmer_token.json"},
+	"GET /api/weapon/get-all":                  {"weapons.json"},
+	"GET /api/chip/get-all":                    {"chips.json"},
+	"GET /api/fight/get/53988601":              {"fight_53988601.json"},
+	"GET /api/fight/get-logs/53988601":         {"logs_53988601.json"},
+	"GET /api/boss/get-all":                    {"bosses.json"},
+	"GET /api/history/get-leek-history/135146": {"leek_history_135146.json"},
 }
 
 func newFakeAPI(t *testing.T, extra map[string][]string) *fakeAPI {
@@ -240,6 +241,18 @@ func TestGetLeekSummaryAndRaw(t *testing.T) {
 	raw, isErr := call(t, cs, "get_leek", map[string]any{"id": 135146, "raw": true})
 	if isErr || !strings.Contains(raw, `"talent_history"`) {
 		t.Fatalf("brut attendu : %.200s", raw)
+	}
+}
+
+func TestListFightsUsesFullHistory(t *testing.T) {
+	cs := session(t, "")
+	text, isErr := call(t, cs, "list_fights", map[string]any{"leek_id": 135146, "result": "defeat", "limit": 2})
+	if isErr || !strings.Contains(text, `"id":53996448`) || !strings.Contains(text, `"id":53996167`) {
+		t.Fatalf("défaites : %.300s", text)
+	}
+	raw, isErr := call(t, cs, "list_fights", map[string]any{"leek_id": 135146, "result": "defeat", "limit": 2, "raw": true})
+	if isErr || strings.Count(raw, `"result":"defeat"`) != 2 || strings.Contains(raw, `"result":"win"`) {
+		t.Fatalf("brut : %.300s", raw)
 	}
 }
 
