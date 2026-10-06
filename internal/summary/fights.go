@@ -16,9 +16,12 @@ type FightLine struct {
 	Opponents []int  `json:"opponents"`
 	// Noms des adversaires, quand l'API les fournit (forme objet de leeks1/leeks2).
 	OpponentNames []string `json:"opponent_names,omitempty"`
+	// Nom du boss affronté (combats de boss seulement).
+	BossName string `json:"boss_name,omitempty"`
 }
 
-// fightLeekRef est un participant d'un combat dans leek/get → fights[].leeks1/leeks2.
+// fightLeekRef est un participant d'un combat (fights[].leeks1/leeks2 de leek/get et
+// de history/get-leek-history).
 // L'API a renvoyé de simples ids puis, depuis octobre 2026, des objets {id, name} ;
 // les deux formes sont acceptées.
 type fightLeekRef struct {
@@ -52,6 +55,7 @@ type rawFight struct {
 	Duration int            `json:"duration"`
 	Leeks1   []fightLeekRef `json:"leeks1"`
 	Leeks2   []fightLeekRef `json:"leeks2"`
+	BossName string         `json:"boss_name"`
 }
 
 func fightLine(f rawFight, leekID int) FightLine {
@@ -73,12 +77,14 @@ func fightLine(f rawFight, leekID int) FightLine {
 	return FightLine{
 		ID: f.ID, Date: isoDate(f.Date), Type: f.Type, Context: f.Context,
 		Result: f.Result, Duration: f.Duration, Opponents: ids, OpponentNames: names,
+		BossName: f.BossName,
 	}
 }
 
-// FightList extrait l'historique de leek/get, filtré par résultat (win, defeat,
-// draw ou vide) et limité (0 = 10).
-func FightList(leekJSON []byte, leekID int, result string, limit int) ([]FightLine, error) {
+// FightList extrait l'historique de history/get-leek-history (complet, du plus
+// récent au plus ancien ; leek/get n'en donne qu'une douzaine), filtré par résultat
+// (win, defeat, draw ou vide) et limité (0 = 10).
+func FightList(historyJSON []byte, leekID int, result string, limit int) ([]FightLine, error) {
 	switch result {
 	case "", "win", "defeat", "draw":
 	default:
@@ -90,8 +96,8 @@ func FightList(leekJSON []byte, leekID int, result string, limit int) ([]FightLi
 	var raw struct {
 		Fights []rawFight `json:"fights"`
 	}
-	if err := json.Unmarshal(leekJSON, &raw); err != nil {
-		return nil, fmt.Errorf("leek/get : %w", err)
+	if err := json.Unmarshal(historyJSON, &raw); err != nil {
+		return nil, fmt.Errorf("history/get-leek-history : %w", err)
 	}
 	out := []FightLine{}
 	for _, f := range raw.Fights {

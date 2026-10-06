@@ -3,30 +3,39 @@ package summary
 import "testing"
 
 func TestFightListDefaultsToTenMostRecent(t *testing.T) {
-	got, err := FightList(fixture(t, "leek_135146.json"), 135146, "", 0)
+	got, err := FightList(fixture(t, "leek_history_135146.json"), 135146, "", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 10 {
 		t.Fatalf("%d combats, attendu 10", len(got))
 	}
-	if got[0].ID != 53988601 || got[0].Duration != 41 {
+	if got[0].ID != 53996589 || got[0].BossName != "nasu_samurai" {
 		t.Fatalf("premier : %+v", got[0])
+	}
+	if len(got[0].Opponents) != 1 || got[0].Opponents[0] != 1 {
+		t.Fatalf("adversaire du boss : %v", got[0].Opponents)
 	}
 }
 
-func TestFightListFiltersByResult(t *testing.T) {
-	got, err := FightList(fixture(t, "leek_135146.json"), 135146, "defeat", 100)
+// leek/get ne donnait qu'une douzaine de combats : après une série de boss, le
+// filtre defeat restait vide. L'historique remonte au-delà.
+func TestFightListFindsDefeatsBeyondRecentFights(t *testing.T) {
+	got, err := FightList(fixture(t, "leek_history_135146.json"), 135146, "defeat", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) == 0 {
-		t.Fatal("aucune défaite")
+	if len(got) != 5 || got[0].ID != 53996448 {
+		t.Fatalf("défaites : %+v", got)
 	}
 	for _, f := range got {
 		if f.Result != "defeat" {
 			t.Fatalf("résultat %q dans le filtre defeat", f.Result)
 		}
+	}
+	// Combat 53996167 : leeks1/leeks2 en objets {id, name}, plop2point0 contre Qbi.
+	if got[1].ID != 53996167 || len(got[1].Opponents) != 1 || got[1].Opponents[0] != 83251 || got[1].OpponentNames[0] != "Qbi" {
+		t.Fatalf("défaite solo : %+v", got[1])
 	}
 }
 

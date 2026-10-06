@@ -81,7 +81,7 @@ func (a *app) server() *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{Name: "get_leek", Annotations: readOnly, Description: "Fiche d'un poireau : niveau, stats, armes et puces équipées, IA, bilan et 10 derniers combats. Avec token : composants et capital."}, a.getLeek)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_farmer", Annotations: readOnly, Description: "Fiche d'un éleveur : poireaux, bilan ; avec token et sans id, l'éleveur du token avec habs, cristaux et inventaire non équipé."}, a.getFarmer)
-	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Annotations: readOnly, Description: "Derniers combats d'un poireau (id, date, résultat, adversaires), filtrables par résultat."}, a.listFights)
+	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Annotations: readOnly, Description: "Historique complet des combats d'un poireau, du plus récent au plus ancien (id, date, résultat, adversaires, boss), filtrable par résultat."}, a.listFights)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_garden", Annotations: readOnly, Description: "État du potager : combats restants (solo/éleveur, équipe), compositions ; avec leek_id, composition_id ou farmer, les adversaires proposés par le matchmaking. Token requis."}, a.getGarden)
@@ -193,22 +193,36 @@ func (a *app) getFarmer(ctx context.Context, _ *mcp.CallToolRequest, in farmerAr
 }
 
 func (a *app) listFights(ctx context.Context, _ *mcp.CallToolRequest, in listFightsArgs) (*mcp.CallToolResult, any, error) {
-	body, err := a.client.Get(ctx, "leek/get/"+strconv.Itoa(in.LeekID))
+	body, err := a.client.Get(ctx, "history/get-leek-history/"+strconv.Itoa(in.LeekID))
 	if err != nil {
 		return fail(err)
-	}
-	if in.Raw {
-		var probe struct {
-			Fights json.RawMessage `json:"fights"`
-		}
-		if err := json.Unmarshal(body, &probe); err != nil {
-			return fail(err)
-		}
-		return raw(probe.Fights)
 	}
 	s, err := summary.FightList(body, in.LeekID, in.Result, in.Limit)
 	if err != nil {
 		return fail(err)
+	}
+	if in.Raw {
+		// L'historique complet pèse plusieurs Mo : seuls les combats retenus sont renvoyés.
+		var probe struct {
+			Fights []json.RawMessage `json:"fights"`
+		}
+		if err := json.Unmarshal(body, &probe); err != nil {
+			return fail(err)
+		}
+		keep := map[int]bool{}
+		for _, f := range s {
+			keep[f.ID] = true
+		}
+		out := []json.RawMessage{}
+		for _, f := range probe.Fights {
+			var id struct {
+				ID int `json:"id"`
+			}
+			if json.Unmarshal(f, &id) == nil && keep[id.ID] {
+				out = append(out, f)
+			}
+		}
+		return ok(out)
 	}
 	return ok(s)
 }
