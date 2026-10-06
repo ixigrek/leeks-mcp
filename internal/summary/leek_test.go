@@ -90,3 +90,25 @@ func TestLeekInfiniteRatio(t *testing.T) {
 		t.Fatalf("puces : %+v", got.Chips)
 	}
 }
+
+func TestLeekAddItemDetails(t *testing.T) {
+	it := items(t)
+	s, err := Leek(fixture(t, "leek_135146.json"), nil, it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Chips[0].Details != nil {
+		t.Fatal("fiches jointes sans demande")
+	}
+	s.AddItemDetails(it)
+	for _, c := range s.Chips {
+		if c.Details == nil || c.Details.ID != c.ID || c.Details.Name != c.Name || len(c.Details.Effects) == 0 {
+			t.Fatalf("puce %+v : fiche %+v", c, c.Details)
+		}
+	}
+	for _, w := range s.Weapons {
+		if w.Details == nil || w.Details.Item != w.Item || w.Details.Cost == 0 {
+			t.Fatalf("arme %+v : fiche %+v", w, w.Details)
+		}
+	}
+}

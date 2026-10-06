@@ -15,12 +15,15 @@ type WeaponRef struct {
 	ID   int    `json:"id"`
 	Item int    `json:"item"`
 	Name string `json:"name"`
+	// Fiche complète, à la demande (get_leek items).
+	Details *ItemSummary `json:"details,omitempty"`
 }
 
 // ChipRef identifie une puce équipée.
 type ChipRef struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID      int          `json:"id"`
+	Name    string       `json:"name"`
+	Details *ItemSummary `json:"details,omitempty"`
 }
 
 // AIRef décrit l'IA assignée.
@@ -170,4 +173,20 @@ func intField(m map[string]json.RawMessage, key string) int {
 
 func isoDate(epoch int64) string {
 	return time.Unix(epoch, 0).UTC().Format(time.RFC3339)
+}
+
+// AddItemDetails joint à chaque arme et puce équipée sa fiche complète (celle de get_item).
+func (s *LeekSummary) AddItemDetails(items *leekwars.Items) {
+	for i, w := range s.Weapons {
+		if wp := items.WeaponByItem(w.Item); wp != nil {
+			d := Item(leekwars.Match{Kind: "weapon", Weapon: wp})
+			s.Weapons[i].Details = &d
+		}
+	}
+	for i, c := range s.Chips {
+		if ch := items.ChipByID(c.ID); ch != nil {
+			d := Item(leekwars.Match{Kind: "chip", Chip: ch})
+			s.Chips[i].Details = &d
+		}
+	}
 }

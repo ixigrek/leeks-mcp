@@ -79,12 +79,12 @@ func boolPtr(b bool) *bool { return &b }
 func (a *app) server() *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "leekwars", Version: version}, nil)
 
-	mcp.AddTool(s, &mcp.Tool{Name: "get_leek", Annotations: readOnly, Description: "Fiche d'un poireau : niveau, stats, armes et puces équipées, IA, bilan et 10 derniers combats. Avec token : composants et capital."}, a.getLeek)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_leek", Annotations: readOnly, Description: "Fiche d'un poireau (le sien ou un adversaire) : niveau, stats, armes et puces équipées (avec items, leur fiche complète : coût, portée, recharge, effets), IA, bilan et 10 derniers combats. Avec token : composants et capital."}, a.getLeek)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_farmer", Annotations: readOnly, Description: "Fiche d'un éleveur : poireaux, bilan ; avec token et sans id, l'éleveur du token avec habs, cristaux et inventaire non équipé."}, a.getFarmer)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Annotations: readOnly, Description: "Historique complet des combats d'un poireau, du plus récent au plus ancien (id, date, résultat, adversaires, boss), filtrable par résultat."}, a.listFights)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV ; filtrable par poireau et par tours (from_turn, to_turn). Token requis."}, a.getFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "fight_stats", Annotations: readOnly, Description: "Diagnostic chiffré d'un combat pour un poireau, par tour et en totaux, son camp (me) contre le camp adverse (them) : PT/PM utilisés, inutilisés ou perdus, dégâts par arme ou puce, boucliers posés et dégâts reçus sous bouclier (les dégâts absorbés ne sont pas dans le rapport), soins, poison, distance, tours sans dégât. Drapeaux : tp_unused, long_guard, shields_never_cast (équipement actuel du poireau), boots_without_shot. Token requis."}, a.fightStats)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau et par tours (from_turn, to_turn). Token requis."}, a.getFightLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_garden", Annotations: readOnly, Description: "État du potager : combats restants (solo/éleveur, équipe), compositions ; avec leek_id, composition_id et/ou farmer (combinables), les adversaires proposés par le matchmaking, groupés par sélecteur. Token requis."}, a.getGarden)
 	mcp.AddTool(s, &mcp.Tool{Name: "start_solo_fight", Annotations: writes, Description: "Lance un combat solo d'un poireau contre un adversaire proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Renvoie l'id et le status, ou le résumé complet avec wait. Token requis."}, a.startSoloFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "start_farmer_fight", Annotations: writes, Description: "Lance un combat d'éleveur (tous les poireaux) contre un éleveur proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Token requis."}, a.startFarmerFight)
@@ -98,7 +98,7 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_tree", Annotations: readOnly, Description: "IA en ligne de l'éleveur (nom, validité, lignes) et IA jouée par chaque poireau (leek_ais). Token requis."}, a.aiTree)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_read", Annotations: readOnly, Description: "Code d'une IA en ligne et sa VERSION ; avec file, compare seulement au fichier local (identique, VERSION en ligne et locale, première ligne divergente). Token requis."}, a.aiRead)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_push", Annotations: writes, Description: "Pousse des fichiers .leek locaux dans les IA en ligne de même nom (sans .leek), dans l'ordre _grp, _nasu, puis le reste : saute les fichiers déjà identiques, vérifie les problems de compilation, relit et compare octet par octet, signale une VERSION inchangée. S'arrête au premier échec. Pas de création d'IA. Token requis."}, a.aiPush)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id. Un id est cherché parmi les id et item des armes et les id des puces (à défaut, les template des puces des rapports) ; s'il désigne plusieurs objets, la réponse est ambiguous avec les candidats et le champ qui a correspondu (matched_by), à départager par kind."}, a.getItem)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce (ou de plusieurs avec queries), par nom (clé anglaise de l'API, ex. laser) ou par id. Un id est cherché parmi les id et item des armes et les id des puces (à défaut, les template des puces des rapports) ; s'il désigne plusieurs objets, la réponse est ambiguous avec les candidats et le champ qui a correspondu (matched_by), à départager par kind."}, a.getItem)
 	return s
 }
 
@@ -107,7 +107,8 @@ type rawFlag struct {
 }
 
 type leekArgs struct {
-	ID int `json:"id" jsonschema:"id du poireau"`
+	ID    int  `json:"id" jsonschema:"id du poireau"`
+	Items bool `json:"items,omitempty" jsonschema:"joindre à chaque arme et puce équipée sa fiche complète (coût, portée, recharge, effets), comme get_item"`
 	rawFlag
 }
 
@@ -123,9 +124,23 @@ type listFightsArgs struct {
 	rawFlag
 }
 
+// turnRange borne les tours renvoyés (inclus, 0 = sans borne).
+type turnRange struct {
+	FromTurn int `json:"from_turn,omitempty" jsonschema:"premier tour renvoyé (inclus)"`
+	ToTurn   int `json:"to_turn,omitempty" jsonschema:"dernier tour renvoyé (inclus)"`
+}
+
+func (r turnRange) check() error {
+	if r.FromTurn < 0 || r.ToTurn < 0 || (r.ToTurn != 0 && r.ToTurn < r.FromTurn) {
+		return fmt.Errorf("tours %d à %d invalides", r.FromTurn, r.ToTurn)
+	}
+	return nil
+}
+
 type fightArgs struct {
 	ID     int `json:"id" jsonschema:"id du combat"`
 	LeekID int `json:"leek_id,omitempty" jsonschema:"ne garder dans les tours que l'activité de ce poireau"`
+	turnRange
 	rawFlag
 }
 
@@ -137,12 +152,14 @@ type fightStatsArgs struct {
 type fightLogsArgs struct {
 	ID     int `json:"id" jsonschema:"id du combat"`
 	LeekID int `json:"leek_id,omitempty" jsonschema:"ne garder que les lignes de ce poireau"`
+	turnRange
 	rawFlag
 }
 
 type itemArgs struct {
-	Query string `json:"query" jsonschema:"nom (ex. laser, sun spear) ou id numérique (id ou item d'une arme, id d'une puce)"`
-	Kind  string `json:"kind,omitempty" jsonschema:"weapon ou chip : ne chercher que ce type d'objet"`
+	Query   string   `json:"query,omitempty" jsonschema:"nom (ex. laser, sun spear) ou id numérique (id ou item d'une arme, id d'une puce)"`
+	Queries []string `json:"queries,omitempty" jsonschema:"plusieurs noms ou ids en un appel : une entrée par requête (result ou error)"`
+	Kind    string   `json:"kind,omitempty" jsonschema:"weapon ou chip : ne chercher que ce type d'objet"`
 	rawFlag
 }
 
@@ -170,6 +187,9 @@ func (a *app) getLeek(ctx context.Context, _ *mcp.CallToolRequest, in leekArgs) 
 	s, err := summary.Leek(public, private, items)
 	if err != nil {
 		return fail(err)
+	}
+	if in.Items {
+		s.AddItemDetails(items)
 	}
 	return ok(s)
 }
@@ -281,6 +301,9 @@ func (a *app) finishedReport(ctx context.Context, id int) ([]byte, error) {
 }
 
 func (a *app) getFight(ctx context.Context, _ *mcp.CallToolRequest, in fightArgs) (*mcp.CallToolResult, any, error) {
+	if err := in.check(); err != nil {
+		return fail(err)
+	}
 	if in.Raw {
 		body, err := a.fightReport(ctx, in.ID)
 		if err != nil {
@@ -300,6 +323,7 @@ func (a *app) getFight(ctx context.Context, _ *mcp.CallToolRequest, in fightArgs
 	if err != nil {
 		return fail(err)
 	}
+	s.KeepTurns(in.FromTurn, in.ToTurn)
 	return ok(s)
 }
 
@@ -328,6 +352,9 @@ func (a *app) fightStats(ctx context.Context, _ *mcp.CallToolRequest, in fightSt
 }
 
 func (a *app) getFightLogs(ctx context.Context, _ *mcp.CallToolRequest, in fightLogsArgs) (*mcp.CallToolResult, any, error) {
+	if err := in.check(); err != nil {
+		return fail(err)
+	}
 	if !a.client.HasToken() {
 		return fail(errNoToken)
 	}
@@ -351,6 +378,7 @@ func (a *app) getFightLogs(ctx context.Context, _ *mcp.CallToolRequest, in fight
 	if err != nil {
 		return fail(err)
 	}
+	s.KeepTurns(in.FromTurn, in.ToTurn)
 	return ok(s)
 }
 
@@ -364,16 +392,51 @@ func (a *app) getItem(ctx context.Context, _ *mcp.CallToolRequest, in itemArgs) 
 	default:
 		return fail(fmt.Errorf("kind %q inconnu : attendu weapon ou chip", in.Kind))
 	}
+	if in.Queries == nil {
+		if in.Query == "" {
+			return fail(fmt.Errorf("query ou queries requis"))
+		}
+		res, err := lookupItem(items, in.Query, in.Kind, in.Raw)
+		if err != nil {
+			return fail(err)
+		}
+		return ok(res)
+	}
+	// Plusieurs requêtes : une entrée par requête, une erreur n'arrête pas les autres.
+	queries := in.Queries
+	if in.Query != "" {
+		queries = append([]string{in.Query}, queries...)
+	}
+	type entry struct {
+		Query  string `json:"query"`
+		Result any    `json:"result,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+	out := make([]entry, 0, len(queries))
+	for _, q := range queries {
+		res, err := lookupItem(items, q, in.Kind, in.Raw)
+		e := entry{Query: q, Result: res}
+		if err != nil {
+			e.Error = err.Error()
+		}
+		out = append(out, e)
+	}
+	return ok(out)
+}
+
+// lookupItem résout une requête de get_item : la fiche, ou {ambiguous, candidates}
+// si plusieurs objets correspondent, ou les objets bruts de l'API (raw).
+func lookupItem(items *leekwars.Items, query, kind string, rawOut bool) (any, error) {
 	var matches []leekwars.Match
-	for _, m := range items.Find(in.Query) {
-		if in.Kind == "" || m.Kind == in.Kind {
+	for _, m := range items.Find(query) {
+		if kind == "" || m.Kind == kind {
 			matches = append(matches, m)
 		}
 	}
 	if len(matches) == 0 {
-		return fail(fmt.Errorf("aucune arme ni puce ne correspond à %q", in.Query))
+		return nil, fmt.Errorf("aucune arme ni puce ne correspond à %q", query)
 	}
-	if in.Raw {
+	if rawOut {
 		var out []any
 		for _, m := range matches {
 			if m.Weapon != nil {
@@ -382,10 +445,10 @@ func (a *app) getItem(ctx context.Context, _ *mcp.CallToolRequest, in itemArgs) 
 				out = append(out, m.Chip)
 			}
 		}
-		return ok(out)
+		return out, nil
 	}
 	if len(matches) == 1 {
-		return ok(summary.Item(matches[0]))
+		return summary.Item(matches[0]), nil
 	}
 	out := make([]summary.ItemSummary, 0, len(matches))
 	for _, m := range matches {
@@ -393,7 +456,7 @@ func (a *app) getItem(ctx context.Context, _ *mcp.CallToolRequest, in itemArgs) 
 		c.MatchedBy = m.By
 		out = append(out, c)
 	}
-	return ok(map[string]any{"ambiguous": true, "candidates": out})
+	return map[string]any{"ambiguous": true, "candidates": out}, nil
 }
 
 // ok sérialise le résumé en JSON compact : moins de tokens qu'une sortie indentée.

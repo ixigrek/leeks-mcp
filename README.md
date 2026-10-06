@@ -6,13 +6,13 @@ Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de 
 
 | Outil | Paramètres | Token |
 |---|---|---|
-| `get_leek` | `id` | optionnel (ajoute composants et capital) |
+| `get_leek` | `id`, `items` (fiche complète de chaque arme et puce équipée) | optionnel (ajoute composants et capital) |
 | `get_farmer` | `id` optionnel | requis si `id` absent (habs, cristaux, inventaire) |
 | `list_fights` | `leek_id`, `result` (`win`/`defeat`/`draw`), `limit` (10) ; historique complet (`history/get-leek-history`) | non |
-| `get_fight` | `id`, `leek_id` optionnel (ne garde que l'activité de ce poireau dans les tours) | oui |
-| `get_fight_logs` | `id`, `leek_id` optionnel | oui |
+| `get_fight` | `id`, `leek_id` optionnel (ne garde que l'activité de ce poireau dans les tours), `from_turn`/`to_turn` | oui |
+| `get_fight_logs` | `id`, `leek_id` optionnel, `from_turn`/`to_turn` | oui |
 | `fight_stats` | `id`, `leek_id` : diagnostic par tour (PT/PM, dégâts par objet, boucliers, soins, poison, distance, tours sans dégât) et drapeaux `tp_unused`, `long_guard`, `shields_never_cast`, `boots_without_shot` | oui |
-| `get_item` | `query` : nom (`laser`, `sun spear`) ou id (`id`/`item` d'une arme, `id` d'une puce comme dans `get_leek` ; à défaut `template` de rapport ; plusieurs objets = `ambiguous` avec `matched_by`), `kind` (`weapon`/`chip`) | non |
+| `get_item` | `query` ou `queries` (liste, une entrée `result`/`error` par requête) : nom (`laser`, `sun spear`) ou id (`id`/`item` d'une arme, `id` d'une puce comme dans `get_leek` ; à défaut `template` de rapport ; plusieurs objets = `ambiguous` avec `matched_by`), `kind` (`weapon`/`chip`) | non |
 | `get_garden` | `leek_id`, `composition_id` et/ou `farmer: true` (combinables) pour ajouter les adversaires proposés, groupés par sélecteur | oui |
 | `start_solo_fight` | `leek_id`, `target_id` optionnel, `wait` | oui |
 | `start_farmer_fight` | `target_id` optionnel, `wait` | oui |

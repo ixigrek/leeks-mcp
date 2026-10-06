@@ -147,3 +147,22 @@ func TestFightChipNamesUseTemplate(t *testing.T) {
 		t.Fatalf("puces du tour 1 : %v, attendu %s", names, want)
 	}
 }
+
+func TestFightKeepTurns(t *testing.T) {
+	s, err := Fight(fixture(t, "fight_53994496.json"), items(t), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.KeepTurns(3, 5)
+	if len(s.Turns) != 3 || s.Turns[0].Turn != 3 || s.Turns[2].Turn != 5 {
+		t.Fatalf("tours : %+v", s.Turns)
+	}
+	// Durée, entités et morts restent ceux du combat entier.
+	if s.Duration != 12 || len(s.Deaths) == 0 || s.Entities[0].LifeEnd != 0 {
+		t.Fatalf("combat entier attendu : durée %d, morts %v", s.Duration, s.Deaths)
+	}
+	s.KeepTurns(11, 0)
+	if len(s.Turns) != 0 {
+		t.Fatalf("tours 3-5 puis 11+ : %+v", s.Turns)
+	}
+}
