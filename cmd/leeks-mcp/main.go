@@ -1,5 +1,5 @@
 // leeks-mcp est un serveur MCP (stdio) pour l'API LeekWars : lecture des fiches
-// et rapports, lancement de combats.
+// et rapports, lancement de combats, loadouts (équipement et capital des poireaux).
 package main
 
 import (
@@ -20,7 +20,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 var errNoToken = errors.New("token LeekWars absent : définir LEEKWARS_TOKEN, LEEKWARS_KEY_FILE ou créer ./key")
 
@@ -67,7 +67,8 @@ func newServer(client *leekwars.Client) *mcp.Server {
 
 var (
 	readOnly = &mcp.ToolAnnotations{ReadOnlyHint: true}
-	launches = &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(true)}
+	writes   = &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: boolPtr(false), OpenWorldHint: boolPtr(true)}
+	destroys = &mcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: boolPtr(true), OpenWorldHint: boolPtr(true)}
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -81,10 +82,14 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_garden", Annotations: readOnly, Description: "État du potager : combats restants (solo/éleveur, équipe), compositions ; avec leek_id, composition_id ou farmer, les adversaires proposés par le matchmaking. Token requis."}, a.getGarden)
-	mcp.AddTool(s, &mcp.Tool{Name: "start_solo_fight", Annotations: launches, Description: "Lance un combat solo d'un poireau contre un adversaire proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Renvoie l'id et le status, ou le résumé complet avec wait. Token requis."}, a.startSoloFight)
-	mcp.AddTool(s, &mcp.Tool{Name: "start_farmer_fight", Annotations: launches, Description: "Lance un combat d'éleveur (tous les poireaux) contre un éleveur proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Token requis."}, a.startFarmerFight)
-	mcp.AddTool(s, &mcp.Tool{Name: "start_team_fight", Annotations: launches, Description: "Lance un combat d'équipe d'une composition contre une composition proposée par le matchmaking (tirée au sort si target_id absent). Consomme un combat d'équipe. Token requis."}, a.startTeamFight)
-	mcp.AddTool(s, &mcp.Tool{Name: "start_boss_fight", Annotations: launches, Description: "Lance un combat contre un boss (id ou nom) avec les poireaux donnés, par défaut tous ceux de l'éleveur. Consomme un combat. Token requis."}, a.startBossFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "start_solo_fight", Annotations: writes, Description: "Lance un combat solo d'un poireau contre un adversaire proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Renvoie l'id et le status, ou le résumé complet avec wait. Token requis."}, a.startSoloFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "start_farmer_fight", Annotations: writes, Description: "Lance un combat d'éleveur (tous les poireaux) contre un éleveur proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Token requis."}, a.startFarmerFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "start_team_fight", Annotations: writes, Description: "Lance un combat d'équipe d'une composition contre une composition proposée par le matchmaking (tirée au sort si target_id absent). Consomme un combat d'équipe. Token requis."}, a.startTeamFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "start_boss_fight", Annotations: writes, Description: "Lance un combat contre un boss (id ou nom) avec les poireaux donnés, par défaut tous ceux de l'éleveur. Consomme un combat. Token requis."}, a.startBossFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "list_loadouts", Annotations: readOnly, Description: "Loadouts (ensembles d'équipement) de l'éleveur : armes, puces, composants, capital par stat ; et les armes et puces possédées. Token requis."}, a.listLoadouts)
+	mcp.AddTool(s, &mcp.Tool{Name: "save_loadout", Annotations: writes, Description: "Crée ou met à jour (set_id) un loadout : armes et puces par nom, capital total par stat. from_leek_id part du build actuel d'un poireau (composants compris). Ne change rien sur le poireau : voir apply_loadout. Token requis."}, a.saveLoadout)
+	mcp.AddTool(s, &mcp.Tool{Name: "apply_loadout", Annotations: writes, Description: "Applique un loadout à un poireau : équipe ses armes, puces et composants, et investit le capital supplémentaire (irréversible sans potion de restat). Réduire une stat exige use_restat. Token requis."}, a.applyLoadout)
+	mcp.AddTool(s, &mcp.Tool{Name: "delete_loadout", Annotations: destroys, Description: "Supprime un loadout de l'éleveur (le poireau garde son équipement). Token requis."}, a.deleteLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id."}, a.getItem)
 	return s
 }
