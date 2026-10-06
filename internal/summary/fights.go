@@ -14,33 +14,65 @@ type FightLine struct {
 	Result    string `json:"result"`
 	Duration  int    `json:"duration"`
 	Opponents []int  `json:"opponents"`
+	// Noms des adversaires, quand l'API les fournit (forme objet de leeks1/leeks2).
+	OpponentNames []string `json:"opponent_names,omitempty"`
+}
+
+// fightLeekRef est un participant d'un combat dans leek/get → fights[].leeks1/leeks2.
+// L'API a renvoyé de simples ids puis, depuis octobre 2026, des objets {id, name} ;
+// les deux formes sont acceptées.
+type fightLeekRef struct {
+	ID   int
+	Name string
+}
+
+func (r *fightLeekRef) UnmarshalJSON(b []byte) error {
+	var id int
+	if err := json.Unmarshal(b, &id); err == nil {
+		*r = fightLeekRef{ID: id}
+		return nil
+	}
+	var obj struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return fmt.Errorf("participant : attendu un id ou un objet {id, name}, reçu %s", b)
+	}
+	*r = fightLeekRef{ID: obj.ID, Name: obj.Name}
+	return nil
 }
 
 type rawFight struct {
-	ID       int    `json:"id"`
-	Date     int64  `json:"date"`
-	Type     int    `json:"type"`
-	Context  int    `json:"context"`
-	Result   string `json:"result"`
-	Duration int    `json:"duration"`
-	Leeks1   []int  `json:"leeks1"`
-	Leeks2   []int  `json:"leeks2"`
+	ID       int            `json:"id"`
+	Date     int64          `json:"date"`
+	Type     int            `json:"type"`
+	Context  int            `json:"context"`
+	Result   string         `json:"result"`
+	Duration int            `json:"duration"`
+	Leeks1   []fightLeekRef `json:"leeks1"`
+	Leeks2   []fightLeekRef `json:"leeks2"`
 }
 
 func fightLine(f rawFight, leekID int) FightLine {
 	opponents := f.Leeks2
-	for _, id := range f.Leeks2 {
-		if id == leekID {
+	for _, l := range f.Leeks2 {
+		if l.ID == leekID {
 			opponents = f.Leeks1
 			break
 		}
 	}
-	if opponents == nil {
-		opponents = []int{}
+	ids := []int{}
+	var names []string
+	for _, l := range opponents {
+		ids = append(ids, l.ID)
+		if l.Name != "" {
+			names = append(names, l.Name)
+		}
 	}
 	return FightLine{
 		ID: f.ID, Date: isoDate(f.Date), Type: f.Type, Context: f.Context,
-		Result: f.Result, Duration: f.Duration, Opponents: opponents,
+		Result: f.Result, Duration: f.Duration, Opponents: ids, OpponentNames: names,
 	}
 }
 
