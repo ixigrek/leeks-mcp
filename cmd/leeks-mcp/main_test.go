@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +19,8 @@ import (
 
 // fakeAPI sert les fixtures de testdata/ comme l'API LeekWars. Les routes sont
 // typées méthode + chemin ; une route peut servir une séquence de fixtures (la
-// i-ème requête reçoit la i-ème, puis la dernière se répète). Les corps POST sont
+// i-ème requête reçoit la i-ème, puis la dernière se répète), chacune précédée
+// d'un code HTTP optionnel ("404:fichier.json"). Les corps POST sont
 // enregistrés pour vérifier ce que les outils envoient.
 type fakeAPI struct {
 	*httptest.Server
@@ -74,7 +76,17 @@ func newFakeAPI(t *testing.T, extra map[string][]string) *fakeAPI {
 		if n >= len(seq) {
 			n = len(seq) - 1
 		}
-		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", seq[n]))
+		name := seq[n]
+		// "404:fichier.json" sert la fixture avec ce code HTTP (erreurs de lancement).
+		if code, rest, found := strings.Cut(name, ":"); found {
+			status, err := strconv.Atoi(code)
+			if err != nil {
+				t.Fatalf("route %s : code HTTP %q invalide", key, code)
+			}
+			w.WriteHeader(status)
+			name = rest
+		}
+		data, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -180,7 +192,7 @@ func TestToolsAreAnnotated(t *testing.T) {
 	}
 }
 
-func TestListsSixTools(t *testing.T) {
+func TestListsElevenTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -190,7 +202,12 @@ func TestListsSixTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		names[tool.Name] = true
 	}
-	for _, want := range []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item"} {
+	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item",
+		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight"}
+	if len(res.Tools) != len(want) {
+		t.Fatalf("%d outils, attendu %d : %v", len(res.Tools), len(want), names)
+	}
+	for _, want := range want {
 		if !names[want] {
 			t.Fatalf("outil %s absent : %v", want, names)
 		}

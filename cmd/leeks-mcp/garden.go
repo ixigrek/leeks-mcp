@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ixigrek/leeks-mcp/internal/summary"
@@ -184,4 +185,87 @@ func (a *app) waitForFight(ctx context.Context, id int) ([]byte, error) {
 			return nil, fmt.Errorf("combat %d toujours en génération après %s : réessayer get_fight id=%d", id, a.pollDeadline, id)
 		}
 	}
+}
+
+type farmerFightArgs struct {
+	TargetID int  `json:"target_id,omitempty" jsonschema:"id de l'éleveur adverse ; absent = tirage au sort parmi les éleveurs proposés"`
+	Wait     bool `json:"wait,omitempty" jsonschema:"attendre la génération du combat et renvoyer son résumé (comme get_fight)"`
+}
+
+func (a *app) startFarmerFight(ctx context.Context, _ *mcp.CallToolRequest, in farmerFightArgs) (*mcp.CallToolResult, any, error) {
+	if !a.client.HasToken() {
+		return fail(errNoToken)
+	}
+	target, picked, err := a.target(ctx, in.TargetID, "garden/get-farmer-opponents")
+	if err != nil {
+		return fail(err)
+	}
+	return a.launch(ctx, "garden/start-farmer-fight", map[string]any{"target_id": target}, in.Wait, picked)
+}
+
+type teamFightArgs struct {
+	CompositionID int  `json:"composition_id" jsonschema:"id de la composition d'équipe qui combat (voir get_garden)"`
+	TargetID      int  `json:"target_id,omitempty" jsonschema:"id de la composition adverse ; absent = tirage au sort parmi celles proposées"`
+	Wait          bool `json:"wait,omitempty" jsonschema:"attendre la génération du combat et renvoyer son résumé (comme get_fight)"`
+}
+
+func (a *app) startTeamFight(ctx context.Context, _ *mcp.CallToolRequest, in teamFightArgs) (*mcp.CallToolResult, any, error) {
+	if !a.client.HasToken() {
+		return fail(errNoToken)
+	}
+	target, picked, err := a.target(ctx, in.TargetID, "garden/get-composition-opponents/"+strconv.Itoa(in.CompositionID))
+	if err != nil {
+		return fail(err)
+	}
+	return a.launch(ctx, "garden/start-team-fight", map[string]any{"composition_id": in.CompositionID, "target_id": target}, in.Wait, picked)
+}
+
+type bossFightArgs struct {
+	Boss         string `json:"boss" jsonschema:"id ou nom du boss (nasu_samurai, fennel_king, evil_pumpkin)"`
+	Participants []int  `json:"participants,omitempty" jsonschema:"ids des poireaux engagés ; absent = tous les poireaux de l'éleveur du token"`
+	Wait         bool   `json:"wait,omitempty" jsonschema:"attendre la génération du combat et renvoyer son résumé (comme get_fight)"`
+}
+
+func (a *app) startBossFight(ctx context.Context, _ *mcp.CallToolRequest, in bossFightArgs) (*mcp.CallToolResult, any, error) {
+	if !a.client.HasToken() {
+		return fail(errNoToken)
+	}
+	bossID, err := a.resolveBoss(ctx, in.Boss)
+	if err != nil {
+		return fail(err)
+	}
+	participants := in.Participants
+	if len(participants) == 0 {
+		body, err := a.client.Get(ctx, "farmer/get-from-token")
+		if err != nil {
+			return fail(err)
+		}
+		if participants, err = summary.FarmerLeekIDs(body); err != nil {
+			return fail(err)
+		}
+	}
+	return a.launch(ctx, "garden/start-boss-fight", map[string]any{"boss_id": bossID, "participants": participants}, in.Wait, nil)
+}
+
+// resolveBoss accepte un id numérique ou un nom de boss/get-all (casse ignorée).
+func (a *app) resolveBoss(ctx context.Context, boss string) (int, error) {
+	if id, err := strconv.Atoi(strings.TrimSpace(boss)); err == nil {
+		return id, nil
+	}
+	body, err := a.client.Get(ctx, "boss/get-all")
+	if err != nil {
+		return 0, err
+	}
+	bosses, err := summary.Bosses(body)
+	if err != nil {
+		return 0, err
+	}
+	names := make([]string, 0, len(bosses))
+	for _, b := range bosses {
+		if strings.EqualFold(b.Name, strings.TrimSpace(boss)) {
+			return b.ID, nil
+		}
+		names = append(names, b.Name)
+	}
+	return 0, fmt.Errorf("boss %q inconnu : %s", boss, strings.Join(names, ", "))
 }

@@ -115,3 +115,84 @@ func TestStartFightRequiresToken(t *testing.T) {
 		}
 	}
 }
+
+func TestStartFarmerFightPicksRandomFarmer(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", gardenRoutes)
+	text, isErr := call(t, cs, "start_farmer_fight", map[string]any{})
+	if isErr || !strings.Contains(text, `"fight_id":53994496`) || !strings.Contains(text, `"target_name":`) {
+		t.Fatalf("lancement : %.300s", text)
+	}
+	post := api.lastPost(t)
+	if post.Path != "/api/garden/start-farmer-fight" || len(post.Body) != 1 {
+		t.Fatalf("POST = %+v", post)
+	}
+	proposed := map[float64]bool{99881: true, 3976: true, 1458: true, 53305: true, 40873: true}
+	if !proposed[post.Body["target_id"].(float64)] {
+		t.Fatalf("target_id %v hors des éleveurs proposés", post.Body["target_id"])
+	}
+}
+
+func TestStartTeamFightPassesAPIErrorVerbatim(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", map[string][]string{
+		"GET /api/garden/get-composition-opponents/7": {"garden_composition_opponents.json"},
+		"POST /api/garden/start-team-fight":           {"404:start_fight_error.json"},
+	})
+	text, isErr := call(t, cs, "start_team_fight", map[string]any{"composition_id": 7, "target_id": 9001})
+	if !isErr || !strings.Contains(text, "error_fight_no_such_team") {
+		t.Fatalf("erreur API attendue : %s", text)
+	}
+	post := api.lastPost(t)
+	if post.Body["composition_id"] != float64(7) || post.Body["target_id"] != float64(9001) {
+		t.Fatalf("POST = %+v", post)
+	}
+}
+
+func TestStartTeamFightPicksRandomComposition(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", gardenRoutes)
+	text, isErr := call(t, cs, "start_team_fight", map[string]any{"composition_id": 7})
+	if isErr || !strings.Contains(text, `"fight_id":53994496`) {
+		t.Fatalf("lancement : %.300s", text)
+	}
+	target := api.lastPost(t).Body["target_id"].(float64)
+	if target != 9001 && target != 9002 {
+		t.Fatalf("target_id %v hors des compositions proposées", target)
+	}
+}
+
+func TestStartBossFightResolvesNameAndDefaultsParticipants(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", gardenRoutes)
+	text, isErr := call(t, cs, "start_boss_fight", map[string]any{"boss": "Nasu_Samurai"})
+	if isErr || !strings.Contains(text, `"fight_id":53994497`) || !strings.Contains(text, `"status":2`) {
+		t.Fatalf("lancement : %.300s", text)
+	}
+	post := api.lastPost(t)
+	if post.Path != "/api/garden/start-boss-fight" || post.Body["boss_id"] != float64(1) {
+		t.Fatalf("POST = %+v", post)
+	}
+	if got := post.Body["participants"]; len(got.([]any)) != 4 || got.([]any)[0] != float64(135146) {
+		t.Fatalf("participants = %v", got)
+	}
+}
+
+func TestStartBossFightByIDWithParticipants(t *testing.T) {
+	cs, api := sessionAPI(t, "tok", gardenRoutes)
+	text, isErr := call(t, cs, "start_boss_fight", map[string]any{"boss": "2", "participants": []int{135146, 135204}, "wait": true})
+	if isErr || !strings.Contains(text, `"turns"`) {
+		t.Fatalf("résumé attendu : %.300s", text)
+	}
+	post := api.lastPost(t)
+	if post.Body["boss_id"] != float64(2) || len(post.Body["participants"].([]any)) != 2 {
+		t.Fatalf("POST = %+v", post)
+	}
+	if api.count("GET /api/boss/get-all") != 0 || api.count("GET /api/farmer/get-from-token") != 0 {
+		t.Fatal("id et participants fournis : ni boss/get-all ni farmer/get-from-token ne devraient être lus")
+	}
+}
+
+func TestStartBossFightUnknownNameListsBosses(t *testing.T) {
+	cs, _ := sessionAPI(t, "tok", gardenRoutes)
+	text, isErr := call(t, cs, "start_boss_fight", map[string]any{"boss": "dragon"})
+	if !isErr || !strings.Contains(text, "fennel_king") {
+		t.Fatalf("erreur listant les boss attendue : %s", text)
+	}
+}
