@@ -202,7 +202,7 @@ func TestToolsAreAnnotated(t *testing.T) {
 	}
 }
 
-func TestListsNineteenTools(t *testing.T) {
+func TestListsTwentyTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -212,7 +212,7 @@ func TestListsNineteenTools(t *testing.T) {
 	for _, tool := range res.Tools {
 		names[tool.Name] = true
 	}
-	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item",
+	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "fight_stats", "get_item",
 		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight", "run_batch",
 		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout", "ai_tree", "ai_read", "ai_push"}
 	if len(res.Tools) != len(want) {
@@ -253,6 +253,18 @@ func TestListFightsUsesFullHistory(t *testing.T) {
 	raw, isErr := call(t, cs, "list_fights", map[string]any{"leek_id": 135146, "result": "defeat", "limit": 2, "raw": true})
 	if isErr || strings.Count(raw, `"result":"defeat"`) != 2 || strings.Contains(raw, `"result":"win"`) {
 		t.Fatalf("brut : %.300s", raw)
+	}
+}
+
+func TestFightStats(t *testing.T) {
+	cs := session(t, "tok")
+	text, isErr := call(t, cs, "fight_stats", map[string]any{"id": 53988601, "leek_id": 135146})
+	if isErr || !strings.Contains(text, `"name":"plop2point0"`) || !strings.Contains(text, `"turns":[{"turn":1`) || !strings.Contains(text, `"flags":`) {
+		t.Fatalf("diagnostic : %.400s", text)
+	}
+	text, isErr = call(t, cs, "fight_stats", map[string]any{"id": 53988601})
+	if !isErr || !strings.Contains(text, "leek_id") {
+		t.Fatalf("leek_id manquant : %s", text)
 	}
 }
 

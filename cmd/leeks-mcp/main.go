@@ -83,6 +83,7 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "get_farmer", Annotations: readOnly, Description: "Fiche d'un éleveur : poireaux, bilan ; avec token et sans id, l'éleveur du token avec habs, cristaux et inventaire non équipé."}, a.getFarmer)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_fights", Annotations: readOnly, Description: "Historique complet des combats d'un poireau, du plus récent au plus ancien (id, date, résultat, adversaires, boss), filtrable par résultat."}, a.listFights)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight", Annotations: readOnly, Description: "Rapport d'un combat résumé tour par tour : déplacements, tirs, puces, dégâts, soins, PV. Token requis."}, a.getFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "fight_stats", Annotations: readOnly, Description: "Diagnostic chiffré d'un combat pour un poireau, par tour et en totaux, son camp (me) contre le camp adverse (them) : PT/PM utilisés, inutilisés ou perdus, dégâts par arme ou puce, boucliers posés et dégâts reçus sous bouclier (les dégâts absorbés ne sont pas dans le rapport), soins, poison, distance, tours sans dégât. Drapeaux : tp_unused, long_guard, shields_never_cast (équipement actuel du poireau), boots_without_shot. Token requis."}, a.fightStats)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_fight_logs", Annotations: readOnly, Description: "Lignes debug() des scripts d'un combat, groupées par tour, filtrables par poireau. Token requis."}, a.getFightLogs)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_garden", Annotations: readOnly, Description: "État du potager : combats restants (solo/éleveur, équipe), compositions ; avec leek_id, composition_id et/ou farmer (combinables), les adversaires proposés par le matchmaking, groupés par sélecteur. Token requis."}, a.getGarden)
 	mcp.AddTool(s, &mcp.Tool{Name: "start_solo_fight", Annotations: writes, Description: "Lance un combat solo d'un poireau contre un adversaire proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Renvoie l'id et le status, ou le résumé complet avec wait. Token requis."}, a.startSoloFight)
@@ -126,6 +127,11 @@ type fightArgs struct {
 	ID     int `json:"id" jsonschema:"id du combat"`
 	LeekID int `json:"leek_id,omitempty" jsonschema:"ne garder dans les tours que l'activité de ce poireau"`
 	rawFlag
+}
+
+type fightStatsArgs struct {
+	ID     int `json:"id" jsonschema:"id du combat"`
+	LeekID int `json:"leek_id" jsonschema:"poireau dont on fait le diagnostic"`
 }
 
 type fightLogsArgs struct {
@@ -291,6 +297,30 @@ func (a *app) getFight(ctx context.Context, _ *mcp.CallToolRequest, in fightArgs
 		return fail(err)
 	}
 	s, err := summary.Fight(body, items, in.LeekID)
+	if err != nil {
+		return fail(err)
+	}
+	return ok(s)
+}
+
+func (a *app) fightStats(ctx context.Context, _ *mcp.CallToolRequest, in fightStatsArgs) (*mcp.CallToolResult, any, error) {
+	body, err := a.finishedReport(ctx, in.ID)
+	if err != nil {
+		return fail(err)
+	}
+	items, err := a.items.Items(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	// L'équipement ne sert qu'aux drapeaux : sans lui, ils se rabattent sur le combat.
+	var equip *summary.Equipment
+	if leek, err := a.client.Get(ctx, "leek/get/"+strconv.Itoa(in.LeekID)); err != nil {
+		log.Printf("leek/get ignoré : %v", err)
+	} else if equip, err = summary.LeekEquipment(leek); err != nil {
+		log.Printf("équipement ignoré : %v", err)
+		equip = nil
+	}
+	s, err := summary.FightStatsOf(body, items, in.LeekID, equip)
 	if err != nil {
 		return fail(err)
 	}

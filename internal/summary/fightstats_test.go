@@ -26,6 +26,9 @@ func TestFightStatsSoloDefeat(t *testing.T) {
 	if me.DamageDealt != 2589 || me.DamageByItem["rhino"] != 629 || me.DamageByItem["iceberg"] != 1009 {
 		t.Fatalf("dégâts infligés : %v", me.DamageByItem)
 	}
+	if me.ShieldsCast["armor"] == 0 || me.Shields != nil || them.ShieldsCast["helmet"] == 0 {
+		t.Fatalf("boucliers en totaux : moi %v, eux %v", me.ShieldsCast, them.ShieldsCast)
+	}
 	t1, t4 := s.Turns[0], s.Turns[3]
 	if t1.Distance != 19 || !t1.ZeroDamage || t1.Me.TPUnused != 16 || t1.Me.MPUsed != 3 {
 		t.Fatalf("tour 1 : %+v", t1)

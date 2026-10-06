@@ -47,11 +47,14 @@ type SideStats struct {
 	DamageTaken         int            `json:"damage_taken,omitempty"`
 	DamageTakenShielded int            `json:"damage_taken_shielded,omitempty"`
 	Shields             []ShieldCast   `json:"shields,omitempty"`
-	Heal                int            `json:"heal,omitempty"`
-	PoisonReceived      int            `json:"poison_received,omitempty"`
-	PoisonDealt         int            `json:"poison_dealt,omitempty"`
+	// Totaux seulement : boucliers posés, comptés par objet (la liste est par tour).
+	ShieldsCast    map[string]int `json:"shields_cast,omitempty"`
+	Heal           int            `json:"heal,omitempty"`
+	PoisonReceived int            `json:"poison_received,omitempty"`
+	PoisonDealt    int            `json:"poison_dealt,omitempty"`
 }
 
+// add cumule un tour dans des totaux.
 func (s *SideStats) add(o SideStats) {
 	s.TPUsed += o.TPUsed
 	s.TPUnused += o.TPUnused
@@ -69,7 +72,12 @@ func (s *SideStats) add(o SideStats) {
 	}
 	s.DamageTaken += o.DamageTaken
 	s.DamageTakenShielded += o.DamageTakenShielded
-	s.Shields = append(s.Shields, o.Shields...)
+	for _, sc := range o.Shields {
+		if s.ShieldsCast == nil {
+			s.ShieldsCast = map[string]int{}
+		}
+		s.ShieldsCast[sc.Item]++
+	}
 	s.Heal += o.Heal
 	s.PoisonReceived += o.PoisonReceived
 	s.PoisonDealt += o.PoisonDealt
