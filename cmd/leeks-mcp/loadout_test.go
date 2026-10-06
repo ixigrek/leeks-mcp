@@ -61,8 +61,14 @@ func TestSaveLoadoutFromLeek(t *testing.T) {
 }
 
 func TestSaveLoadoutUpdatesExisting(t *testing.T) {
-	cs, api := sessionAPI(t, "tok", loadoutRoutes)
-	text, isErr := call(t, cs, "save_loadout", map[string]any{"set_id": 1485, "icon": "agility", "chips": []string{"flash", "shock"}})
+	// Le loadout 1485 vise un poireau plus haut (lightninger niveau 237, 1370 capital) :
+	// 135146 passé au niveau 250.
+	routes := map[string][]string{"GET /api/leek/get-private/135146": {"leek_private_135146_level250.json"}}
+	for k, v := range loadoutRoutes {
+		routes[k] = v
+	}
+	cs, api := sessionAPI(t, "tok", routes)
+	text, isErr := call(t, cs, "save_loadout", map[string]any{"set_id": 1485, "leek_id": 135146, "icon": "agility", "chips": []string{"flash", "shock"}})
 	if isErr || !strings.Contains(text, `"name":"mcp-test-2"`) || !strings.Contains(text, `"icon":"agility"`) {
 		t.Fatalf("mise à jour : %.400s", text)
 	}
@@ -73,7 +79,7 @@ func TestSaveLoadoutUpdatesExisting(t *testing.T) {
 	if put.Body["chips"] != "[6,1]" || put.Body["weapons"] != "[42,43,153,180]" || !strings.Contains(put.Body["stats"].(string), `"strength":700`) {
 		t.Fatalf("contenu conservé : %+v", put.Body)
 	}
-	text, isErr = call(t, cs, "save_loadout", map[string]any{"set_id": 1, "name": "x"})
+	text, isErr = call(t, cs, "save_loadout", map[string]any{"set_id": 1, "leek_id": 135146, "name": "x"})
 	if !isErr || !strings.Contains(text, "loadout 1 introuvable") {
 		t.Fatalf("loadout inconnu : %s", text)
 	}
@@ -85,13 +91,18 @@ func TestSaveLoadoutValidatesBeforeSending(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{map[string]any{"weapons": []string{"laser"}}, "name requis"},
-		{map[string]any{"name": "x", "weapons": []string{"plop"}}, `arme "plop" inconnue`},
-		{map[string]any{"name": "x", "weapons": []string{"laser", "laser"}}, "laser en double"},
-		{map[string]any{"name": "x", "chips": []string{"laser"}}, `puce "laser" inconnue`},
-		{map[string]any{"name": "x", "stats": map[string]any{"speed": 1}}, `"speed" inconnue`},
-		{map[string]any{"name": "x", "stats": map[string]any{"life": -1}}, "capital négatif"},
+		{map[string]any{"name": "x", "chips": []string{"flash"}}, "leek_id ou from_leek_id requis"},
+		{map[string]any{"leek_id": 135146, "weapons": []string{"laser"}}, "name requis"},
+		{map[string]any{"name": "x", "leek_id": 135146, "weapons": []string{"plop"}}, `arme "plop" inconnue`},
+		{map[string]any{"name": "x", "leek_id": 135146, "weapons": []string{"laser", "laser"}}, "laser en double"},
+		{map[string]any{"name": "x", "leek_id": 135146, "chips": []string{"laser"}}, `puce "laser" inconnue`},
+		{map[string]any{"name": "x", "leek_id": 135146, "stats": map[string]any{"speed": 1}}, `"speed" inconnue`},
+		{map[string]any{"name": "x", "leek_id": 135146, "stats": map[string]any{"life": -1}}, "capital négatif"},
 		{map[string]any{"name": "x", "from_leek_id": 135146, "stats": map[string]any{"agility": 1000}}, "2275 capital demandé, 1300 au total"},
+		// Poireau 135146 : niveau 233, 4 armes, 12 puces.
+		{map[string]any{"name": "x", "leek_id": 135146, "weapons": []string{"laser", "pistol", "m_laser", "katana", "electrisor"}}, "5 armes pour 4 emplacements ; m_laser niveau 299"},
+		{map[string]any{"name": "x", "leek_id": 135146, "chips": []string{"flash", "shock", "steroid", "vaccine", "leather_boots", "rockfall", "venom", "manumission", "flame", "meteorite", "healer_bulb", "apocalypse", "arsenic"}}, "13 puces pour 12 emplacements"},
+		{map[string]any{"name": "x", "leek_id": 135146, "chips": []string{"arsenic"}}, "loadout refusé pour plop2point0 (niveau 233) : arsenic niveau 285"},
 	}
 	for _, c := range cases {
 		text, isErr := call(t, cs, "save_loadout", c.args)
