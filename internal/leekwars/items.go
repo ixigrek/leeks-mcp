@@ -37,10 +37,10 @@ type Weapon struct {
 	Effects    []Effect `json:"effects"`
 }
 
-// Chip porte aussi deux identifiants, mais seul Template compte : c'est lui que
-// portent les actions USE_CHIP des rapports, leek/get → chips[].template,
-// l'inventaire de l'éleveur et les loadouts. ID (chip/get-all) n'est utilisé
-// nulle part ailleurs et ne doit pas servir de clé.
+// Chip porte aussi deux identifiants : ID (leek/get → chips[].template,
+// inventaire de l'éleveur, loadouts et owned_chips) et Template (actions
+// USE_CHIP des rapports de combat). Les deux espaces se recouvrent sans
+// coïncider : id 14 = leather_boots, template 14 = rockfall.
 type Chip struct {
 	ID         int      `json:"id"`
 	Template   int      `json:"template"`
@@ -68,6 +68,7 @@ type Match struct {
 type Items struct {
 	weaponsByID     map[int]*Weapon
 	weaponsByItem   map[int]*Weapon
+	chipsByID       map[int]*Chip
 	chipsByTemplate map[int]*Chip
 	weapons         []*Weapon
 	chips           []*Chip
@@ -90,6 +91,7 @@ func ParseItems(weaponsJSON, chipsJSON []byte) (*Items, error) {
 	items := &Items{
 		weaponsByID:     map[int]*Weapon{},
 		weaponsByItem:   map[int]*Weapon{},
+		chipsByID:       map[int]*Chip{},
 		chipsByTemplate: map[int]*Chip{},
 	}
 	for _, wp := range w.Weapons {
@@ -98,6 +100,7 @@ func ParseItems(weaponsJSON, chipsJSON []byte) (*Items, error) {
 		items.weapons = append(items.weapons, wp)
 	}
 	for _, ch := range c.Chips {
+		items.chipsByID[ch.ID] = ch
 		items.chipsByTemplate[ch.Template] = ch
 		items.chips = append(items.chips, ch)
 	}
@@ -110,8 +113,11 @@ func (it *Items) WeaponByID(id int) *Weapon { return it.weaponsByID[id] }
 // WeaponByItem résout l'identifiant utilisé dans leek/get (template).
 func (it *Items) WeaponByItem(item int) *Weapon { return it.weaponsByItem[item] }
 
-// ChipByID résout une puce par son template, l'identifiant des rapports et de leek/get.
-func (it *Items) ChipByID(id int) *Chip { return it.chipsByTemplate[id] }
+// ChipByID résout l'identifiant utilisé dans leek/get, l'inventaire et les loadouts.
+func (it *Items) ChipByID(id int) *Chip { return it.chipsByID[id] }
+
+// ChipByTemplate résout l'identifiant utilisé par les actions USE_CHIP des rapports.
+func (it *Items) ChipByTemplate(template int) *Chip { return it.chipsByTemplate[template] }
 
 // WeaponName renvoie le nom d'une arme par ID de rapport, ou "weapon_<id>".
 func (it *Items) WeaponName(id int) string {
@@ -121,7 +127,7 @@ func (it *Items) WeaponName(id int) string {
 	return "weapon_" + strconv.Itoa(id)
 }
 
-// ChipName renvoie le nom d'une puce par template, ou "chip_<id>".
+// ChipName renvoie le nom d'une puce par id (leek/get, inventaire, loadouts), ou "chip_<id>".
 func (it *Items) ChipName(id int) string {
 	if c := it.ChipByID(id); c != nil {
 		return c.Name
@@ -129,8 +135,16 @@ func (it *Items) ChipName(id int) string {
 	return "chip_" + strconv.Itoa(id)
 }
 
-// Find cherche par identifiant numérique (arme : id ou item ; puce : template) ou par
-// nom, sans tenir compte de la casse ni des séparateurs (« sun spear » = sun_spear).
+// ChipNameByTemplate renvoie le nom d'une puce par template (rapports), ou "chip_<template>".
+func (it *Items) ChipNameByTemplate(template int) string {
+	if c := it.ChipByTemplate(template); c != nil {
+		return c.Name
+	}
+	return "chip_" + strconv.Itoa(template)
+}
+
+// Find cherche par identifiant numérique (arme : id ou item ; puce : id ou template) ou
+// par nom, sans tenir compte de la casse ni des séparateurs (« sun spear » = sun_spear).
 func (it *Items) Find(query string) []Match {
 	var out []Match
 	q := strings.TrimSpace(query)
@@ -142,8 +156,12 @@ func (it *Items) Find(query string) []Match {
 				out = append(out, Match{Kind: "weapon", Weapon: w})
 			}
 		}
-		if c := it.ChipByID(n); c != nil {
-			out = append(out, Match{Kind: "chip", Chip: c})
+		seenChip := map[*Chip]bool{}
+		for _, c := range []*Chip{it.ChipByID(n), it.ChipByTemplate(n)} {
+			if c != nil && !seenChip[c] {
+				seenChip[c] = true
+				out = append(out, Match{Kind: "chip", Chip: c})
+			}
 		}
 		return out
 	}

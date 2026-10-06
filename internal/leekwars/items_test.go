@@ -37,15 +37,46 @@ func TestWeaponByIDAndByItem(t *testing.T) {
 	}
 }
 
-func TestChipByID(t *testing.T) {
+// Une puce a deux identifiants : id (leek/get, inventaire, loadouts) et
+// template (USE_CHIP des rapports). 14 = leather_boots (template 30) mais
+// template 14 = rockfall (id 32).
+func TestChipByIDAndByTemplate(t *testing.T) {
 	items := loadItems(t)
-	// L'identifiant partout utilisé (rapports, leek/get, loadouts) est le template,
-	// pas le champ id de chip/get-all : 14 = rockfall (id 32), 16 = stalactite (id 30).
-	for id, name := range map[int]string{14: "rockfall", 16: "stalactite", 30: "leather_boots"} {
+	for id, name := range map[int]string{14: "leather_boots", 11: "vaccine", 35: "regeneration", 174: "manumission", 155: "knowledge"} {
 		c := items.ChipByID(id)
 		if c == nil || c.Name != name {
 			t.Fatalf("ChipByID(%d) = %+v, attendu %s", id, c, name)
 		}
+	}
+	for tpl, name := range map[int]string{14: "rockfall", 16: "stalactite", 30: "leather_boots", 1: "bandage"} {
+		c := items.ChipByTemplate(tpl)
+		if c == nil || c.Name != name {
+			t.Fatalf("ChipByTemplate(%d) = %+v, attendu %s", tpl, c, name)
+		}
+	}
+	if items.ChipName(174) != "manumission" || items.ChipNameByTemplate(100) != "manumission" {
+		t.Fatalf("noms : %s / %s", items.ChipName(174), items.ChipNameByTemplate(100))
+	}
+	if items.ChipName(999999) != "chip_999999" || items.ChipNameByTemplate(999999) != "chip_999999" {
+		t.Fatal("puce inconnue : chip_<id> attendu")
+	}
+}
+
+// Find par nombre cherche une puce par id puis par template, comme pour les armes.
+func TestFindByNumericIDMatchesChipIDAndTemplate(t *testing.T) {
+	items := loadItems(t)
+	got := items.Find("174")
+	if len(got) != 1 || got[0].Chip == nil || got[0].Chip.Name != "manumission" {
+		t.Fatalf("Find(174) = %+v", got)
+	}
+	names := map[string]bool{}
+	for _, m := range items.Find("14") {
+		if m.Chip != nil {
+			names[m.Chip.Name] = true
+		}
+	}
+	if !names["leather_boots"] || !names["rockfall"] {
+		t.Fatalf("Find(14) = %v, attendu leather_boots et rockfall", names)
 	}
 }
 

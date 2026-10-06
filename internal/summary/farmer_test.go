@@ -41,4 +41,8 @@ func TestFarmerFromTokenHasHabsAndInventory(t *testing.T) {
 	if got.Inventory.Weapons[0].Name != "pistol" || got.Inventory.Weapons[0].Count != 4 {
 		t.Fatalf("première arme : %+v", got.Inventory.Weapons[0])
 	}
+	// L'inventaire porte l'id de chip/get-all : 1 = shock, 3 = bandage.
+	if got.Inventory.Chips[0].Name != "shock" || got.Inventory.Chips[1].Name != "bandage" {
+		t.Fatalf("premières puces : %+v", got.Inventory.Chips[:2])
+	}
 }

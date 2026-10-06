@@ -294,7 +294,7 @@ func Fight(body []byte, items *leekwars.Items, leekID int) (*FightSummary, error
 		case actUseChip:
 			if caster >= 0 {
 				e := turn.entity(caster)
-				e.Chips = append(e.Chips, ChipUse{Chip: items.ChipName(argInt(a, 1)), Cell: argInt(a, 2), Critical: argInt(a, 3) == 2})
+				e.Chips = append(e.Chips, ChipUse{Chip: items.ChipNameByTemplate(argInt(a, 1)), Cell: argInt(a, 2), Critical: argInt(a, 3) == 2})
 			}
 		case actSetWeapon:
 			if caster >= 0 {

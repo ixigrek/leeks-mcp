@@ -17,10 +17,10 @@ func TestLoadoutsResolvesNames(t *testing.T) {
 	if l.ID != 1485 || l.Name != "mcp-test" || l.Icon != "strength" || l.Components != 6 || l.Capital != 1370 {
 		t.Fatalf("loadout : %+v", l)
 	}
-	if strings.Join(l.Weapons, ",") != "laser,grenade_launcher,rhino,"+weaponName(180, items(t)) || l.Chips[0] != "rockfall" || l.Stats["strength"] != 700 {
+	if strings.Join(l.Weapons, ",") != "laser,grenade_launcher,rhino,"+weaponName(180, items(t)) || l.Chips[0] != "leather_boots" || l.Stats["strength"] != 700 {
 		t.Fatalf("équipement : %+v", l)
 	}
-	if len(got.OwnedWeapons) != 13 || got.OwnedWeapons[0] != "pistol" || len(got.OwnedChips) != 41 {
+	if len(got.OwnedWeapons) != 13 || got.OwnedWeapons[0] != "pistol" || len(got.OwnedChips) != 41 || got.OwnedChips[40] != "knowledge" {
 		t.Fatalf("possédés : %v %v", got.OwnedWeapons, got.OwnedChips)
 	}
 	empty, err := Loadouts(fixture(t, "loadouts_empty.json"), items(t))

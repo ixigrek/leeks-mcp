@@ -227,7 +227,7 @@ func resolveWeapons(items *leekwars.Items, names []string) ([]int, error) {
 	return out, nil
 }
 
-// resolveChips traduit des noms ou ids de puces en templates, sans doublon.
+// resolveChips traduit des noms ou ids de puces en ids de chip/get-all (ceux des loadouts), sans doublon.
 func resolveChips(items *leekwars.Items, names []string) ([]int, error) {
 	out := []int{}
 	for _, name := range names {

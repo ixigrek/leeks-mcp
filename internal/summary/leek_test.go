@@ -22,14 +22,15 @@ func TestLeekResolvesEquipmentAndRecord(t *testing.T) {
 	if !laser {
 		t.Fatalf("laser absent : %+v", got.Weapons)
 	}
+	// leek/get → chips[].template est l'id de chip/get-all : 14 = leather_boots.
 	var boots bool
 	for _, c := range got.Chips {
-		if c.Name == "rockfall" && c.ID == 14 {
+		if c.Name == "leather_boots" && c.ID == 14 {
 			boots = true
 		}
 	}
 	if !boots {
-		t.Fatalf("rockfall absente : %+v", got.Chips)
+		t.Fatalf("leather_boots absente : %+v", got.Chips)
 	}
 	if got.AI.Name != "force" {
 		t.Fatalf("ai = %+v", got.AI)
@@ -63,3 +64,4 @@ func TestLeekMergesPrivateData(t *testing.T) {
 		t.Fatalf("%d composants, attendu 6 (les emplacements vides sont ignorés)", len(got.Components))
 	}
 }
+
