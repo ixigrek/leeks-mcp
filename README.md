@@ -24,7 +24,7 @@ Limites connues : `list_fights` ne voit que les 12 derniers combats renvoyés pa
 
 Les outils `start_*` consomment un combat du potager. Sans `target_id`, l'adversaire est tiré au sort parmi ceux que propose le matchmaking (`get_garden` les liste) ; la cible tirée est renvoyée (`target_id`, `target_name`). Sans `participants`, `start_boss_fight` engage tous les poireaux de l'éleveur du token.
 
-Par défaut la réponse est `{"fight_id", "status"}` (`status` 2 = généré, sinon en attente : appeler `get_fight` plus tard). Avec `wait: true`, l'outil sonde le rapport toutes les 2 s pendant 60 s au plus et renvoie le même résumé que `get_fight`. Les erreurs de l'API (`error_fight_not_enough_fights`, `error_fight_no_such_team`…) sont renvoyées telles quelles.
+Par défaut la réponse est `{"fight_id", "status"}` (`status` 2 = généré, sinon en attente : `get_fight` répond « en génération » tant que le rapport n'est pas prêt). Avec `wait: true`, l'outil sonde le rapport toutes les 2 s pendant 60 s au plus et renvoie le même résumé que `get_fight`. Les erreurs de l'API (`error_fight_not_enough_fights`, `error_fight_no_such_team`…) sont renvoyées telles quelles.
 
 Hors périmètre : lots de combats (`*-batch`, réservés à LeekWars+), défis, arène, escouades de boss à plusieurs éleveurs. Le combat d'équipe n'a pas pu être vérifié sur un vrai compte (fixture écrite à la main).
 

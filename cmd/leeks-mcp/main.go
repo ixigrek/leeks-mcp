@@ -230,13 +230,34 @@ func (a *app) cacheFight(id int, body []byte) {
 	a.mu.Unlock()
 }
 
+// finishedReport lit un rapport et refuse ceux encore en génération : résumés,
+// leur contenu vide passerait pour un combat sans action.
+func (a *app) finishedReport(ctx context.Context, id int) ([]byte, error) {
+	body, err := a.fightReport(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	status, err := summary.FightStatus(body)
+	if err != nil {
+		return nil, err
+	}
+	if status != summary.FightFinished {
+		return nil, fmt.Errorf("combat %d en génération (status %d) : réessayer plus tard", id, status)
+	}
+	return body, nil
+}
+
 func (a *app) getFight(ctx context.Context, _ *mcp.CallToolRequest, in fightArgs) (*mcp.CallToolResult, any, error) {
-	body, err := a.fightReport(ctx, in.ID)
+	if in.Raw {
+		body, err := a.fightReport(ctx, in.ID)
+		if err != nil {
+			return fail(err)
+		}
+		return raw(body)
+	}
+	body, err := a.finishedReport(ctx, in.ID)
 	if err != nil {
 		return fail(err)
-	}
-	if in.Raw {
-		return raw(body)
 	}
 	items, err := a.items.Items(ctx)
 	if err != nil {
@@ -253,14 +274,19 @@ func (a *app) getFightLogs(ctx context.Context, _ *mcp.CallToolRequest, in fight
 	if !a.client.HasToken() {
 		return fail(errNoToken)
 	}
-	logs, err := a.client.Get(ctx, "fight/get-logs/"+strconv.Itoa(in.ID))
+	if in.Raw {
+		logs, err := a.client.Get(ctx, "fight/get-logs/"+strconv.Itoa(in.ID))
+		if err != nil {
+			return fail(err)
+		}
+		return raw(logs)
+	}
+	// Le rapport d'abord : il est en cache et refuse un combat encore en génération.
+	report, err := a.finishedReport(ctx, in.ID)
 	if err != nil {
 		return fail(err)
 	}
-	if in.Raw {
-		return raw(logs)
-	}
-	report, err := a.fightReport(ctx, in.ID)
+	logs, err := a.client.Get(ctx, "fight/get-logs/"+strconv.Itoa(in.ID))
 	if err != nil {
 		return fail(err)
 	}

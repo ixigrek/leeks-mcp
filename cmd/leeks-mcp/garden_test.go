@@ -196,3 +196,35 @@ func TestStartBossFightUnknownNameListsBosses(t *testing.T) {
 		t.Fatalf("erreur listant les boss attendue : %s", text)
 	}
 }
+
+func TestLaunchErrorAfterPostKeepsFightID(t *testing.T) {
+	routes := map[string][]string{}
+	for k, v := range gardenRoutes {
+		routes[k] = v
+	}
+	routes["GET /api/fight/get/53994496"] = []string{"404:start_fight_error.json"}
+	cs, _ := sessionAPI(t, "tok", routes)
+	for _, args := range []map[string]any{
+		{"leek_id": 135146, "target_id": 83810},
+		{"leek_id": 135146, "target_id": 83810, "wait": true},
+	} {
+		text, isErr := call(t, cs, "start_solo_fight", args)
+		if !isErr || !strings.Contains(text, "combat 53994496 lancé") || !strings.Contains(text, "get_fight") {
+			t.Fatalf("%v : l'erreur doit citer le combat lancé : %s", args, text)
+		}
+	}
+}
+
+func TestGetFightPendingIsAnError(t *testing.T) {
+	cs, _ := sessionAPI(t, "tok", map[string][]string{
+		"GET /api/fight/get/53994496": {"fight_pending.json"},
+	})
+	text, isErr := call(t, cs, "get_fight", map[string]any{"id": 53994496})
+	if !isErr || !strings.Contains(text, "en génération") {
+		t.Fatalf("erreur « en génération » attendue : %.200s", text)
+	}
+	text, isErr = call(t, cs, "get_fight_logs", map[string]any{"id": 53994496})
+	if !isErr || !strings.Contains(text, "en génération") {
+		t.Fatalf("logs : erreur « en génération » attendue : %.200s", text)
+	}
+}

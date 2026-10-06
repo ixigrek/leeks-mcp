@@ -122,7 +122,8 @@ type launchResult struct {
 }
 
 // launch poste le lancement, puis renvoie soit l'id et le status du combat, soit,
-// avec wait, son résumé une fois généré.
+// avec wait, son résumé une fois généré. Passé le POST, le combat existe et a été
+// consommé : toute erreur ultérieure cite son id pour que l'agent ne relance pas.
 func (a *app) launch(ctx context.Context, path string, payload map[string]any, wait bool, picked *summary.Opponent) (*mcp.CallToolResult, any, error) {
 	body, err := a.client.Post(ctx, path, payload)
 	if err != nil {
@@ -132,34 +133,40 @@ func (a *app) launch(ctx context.Context, path string, payload map[string]any, w
 	if err != nil {
 		return fail(err)
 	}
+	res, err := a.launched(ctx, id, wait, picked)
+	if err != nil {
+		return fail(fmt.Errorf("combat %d lancé, mais %w (le lire avec get_fight id=%d)", id, err, id))
+	}
+	return ok(res)
+}
+
+// launched produit la réponse d'un combat déjà créé : son résumé avec wait, sinon
+// son id, son status et la cible tirée au sort le cas échéant.
+func (a *app) launched(ctx context.Context, id int, wait bool, picked *summary.Opponent) (any, error) {
 	if wait {
 		report, err := a.waitForFight(ctx, id)
 		if err != nil {
-			return fail(err)
+			return nil, err
 		}
 		items, err := a.items.Items(ctx)
 		if err != nil {
-			return fail(err)
+			return nil, err
 		}
-		s, err := summary.Fight(report, items, 0)
-		if err != nil {
-			return fail(err)
-		}
-		return ok(s)
+		return summary.Fight(report, items, 0)
 	}
 	report, err := a.fightReport(ctx, id)
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	status, err := summary.FightStatus(report)
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	out := launchResult{FightID: id, Status: status}
 	if picked != nil {
 		out.TargetID, out.TargetName = picked.ID, picked.Name
 	}
-	return ok(out)
+	return out, nil
 }
 
 // waitForFight sonde fight/get jusqu'à la fin de la génération, dans la limite
@@ -182,7 +189,7 @@ func (a *app) waitForFight(ctx context.Context, id int) ([]byte, error) {
 		select {
 		case <-time.After(a.pollInterval):
 		case <-ctx.Done():
-			return nil, fmt.Errorf("combat %d toujours en génération après %s : réessayer get_fight id=%d", id, a.pollDeadline, id)
+			return nil, fmt.Errorf("toujours en génération après %s", a.pollDeadline)
 		}
 	}
 }
