@@ -59,6 +59,7 @@ type LeekSummary struct {
 	Record     Record         `json:"record"`
 	Fights     []FightLine    `json:"fights"`
 	Capital    *int           `json:"capital,omitempty"`
+	Spent      map[string]int `json:"capital_spent,omitempty"` // capital investi par stat, l'unité des loadouts
 	Components []Component    `json:"components,omitempty"`
 }
 
@@ -141,6 +142,15 @@ func Leek(publicJSON, privateJSON []byte, items *leekwars.Items) (*LeekSummary, 
 			return nil, fmt.Errorf("leek/get-private : %w", err)
 		}
 		s.Capital = priv.Capital
+		var privFlat map[string]json.RawMessage
+		if err := json.Unmarshal(privateJSON, &privFlat); err != nil {
+			return nil, fmt.Errorf("leek/get-private : %w", err)
+		}
+		stats := map[string]int{}
+		for _, name := range statNames {
+			stats[name] = intField(privFlat, name)
+		}
+		s.Spent = CapitalSpent(priv.Level, stats)
 		for _, c := range priv.Components {
 			if c != nil {
 				s.Components = append(s.Components, *c)

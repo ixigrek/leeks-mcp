@@ -56,6 +56,9 @@ func TestLeekMergesPrivateData(t *testing.T) {
 	if got.Capital == nil || *got.Capital != 25 {
 		t.Fatalf("capital = %v", got.Capital)
 	}
+	if got.Spent["strength"] != 700 || got.Spent["tp"] != 255 || len(got.Spent) != 5 {
+		t.Fatalf("capital dépensé = %v", got.Spent)
+	}
 	if len(got.Components) != 6 {
 		t.Fatalf("%d composants, attendu 6 (les emplacements vides sont ignorés)", len(got.Components))
 	}
