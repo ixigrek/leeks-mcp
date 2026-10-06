@@ -46,3 +46,48 @@ func TestBossesListsNamesAndLevels(t *testing.T) {
 		t.Fatalf("boss = %+v", got)
 	}
 }
+
+func TestGardenCountersAndFlags(t *testing.T) {
+	g, err := Garden(fixture(t, "garden.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Fights != 3040 || g.MaxFights != 3040 || g.TeamFights != 0 || !g.FarmerEnabled || g.TeamEnabled || !g.BattleRoyaleEnabled {
+		t.Fatalf("garden = %+v", g)
+	}
+	if g.Compositions == nil || len(g.Compositions) != 0 {
+		t.Fatalf("compositions = %v", g.Compositions)
+	}
+}
+
+func TestOpponentsLeeks(t *testing.T) {
+	ops, err := Opponents(fixture(t, "garden_leek_opponents_135146.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 5 || ops[0].ID != 83810 || ops[0].Name != "Imarmaleek" || ops[0].Level != 244 || ops[0].Talent != 1025 {
+		t.Fatalf("adversaires = %+v", ops)
+	}
+}
+
+func TestOpponentsFarmers(t *testing.T) {
+	ops, err := Opponents(fixture(t, "garden_farmer_opponents.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 5 || ops[0].ID != 99881 || ops[0].Name != "Simon200079" || ops[0].LeekCount != 4 || ops[0].TotalLevel != 691 {
+		t.Fatalf("adversaires = %+v", ops)
+	}
+}
+
+func TestOpponentsCompositions(t *testing.T) {
+	// Fixture écrite à la main (pas d'équipe sur le compte de test) d'après le
+	// modèle Composition du client officiel.
+	ops, err := Opponents(fixture(t, "garden_composition_opponents.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 2 || ops[0].ID != 9001 || ops[0].Team == nil || ops[0].Team.Name != "Potager Uni" || len(ops[0].Leeks) != 2 || ops[0].Leeks[1].Name != "Oignon2" {
+		t.Fatalf("adversaires = %+v", ops)
+	}
+}

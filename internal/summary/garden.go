@@ -82,3 +82,90 @@ func Bosses(body []byte) ([]BossRef, error) {
 	}
 	return raw.Bosses, nil
 }
+
+// Ref identifie un éleveur ou une équipe rattaché à un adversaire.
+type Ref struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// CompositionRef décrit une composition d'équipe du potager.
+type CompositionRef struct {
+	ID     int       `json:"id"`
+	Name   string    `json:"name"`
+	Fights int       `json:"fights"`
+	Leeks  []LeekRef `json:"leeks"`
+}
+
+// GardenSummary résume garden/get : combats restants et compositions.
+type GardenSummary struct {
+	Fights              int              `json:"fights"`
+	MaxFights           int              `json:"max_fights"`
+	TeamFights          int              `json:"team_fights"`
+	MaxTeamFights       int              `json:"max_team_fights"`
+	FarmerEnabled       bool             `json:"farmer_enabled"`
+	TeamEnabled         bool             `json:"team_enabled"`
+	BattleRoyaleEnabled bool             `json:"battle_royale_enabled"`
+	Compositions        []CompositionRef `json:"compositions"`
+}
+
+// Garden lit l'état du potager renvoyé par garden/get.
+func Garden(body []byte) (*GardenSummary, error) {
+	var raw struct {
+		Garden struct {
+			Fights              int              `json:"fights"`
+			MaxFights           int              `json:"max_fights"`
+			TeamFights          int              `json:"team_fights"`
+			MaxTeamFights       int              `json:"max_team_fights"`
+			FarmerEnabled       bool             `json:"farmer_enabled"`
+			TeamEnabled         bool             `json:"team_enabled"`
+			BattleRoyaleEnabled bool             `json:"battle_royale_enabled"`
+			Compositions        []CompositionRef `json:"my_compositions"`
+		} `json:"garden"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("garden/get : %w", err)
+	}
+	g := raw.Garden
+	if g.Compositions == nil {
+		g.Compositions = []CompositionRef{}
+	}
+	for i := range g.Compositions {
+		if g.Compositions[i].Leeks == nil {
+			g.Compositions[i].Leeks = []LeekRef{}
+		}
+	}
+	return &GardenSummary{
+		Fights: g.Fights, MaxFights: g.MaxFights, TeamFights: g.TeamFights, MaxTeamFights: g.MaxTeamFights,
+		FarmerEnabled: g.FarmerEnabled, TeamEnabled: g.TeamEnabled, BattleRoyaleEnabled: g.BattleRoyaleEnabled,
+		Compositions: g.Compositions,
+	}, nil
+}
+
+// Opponent est un adversaire proposé par le matchmaking : poireau (level, talent),
+// éleveur (leek_count, total_level) ou composition (leeks, team). Les champs
+// absents de la forme concernée sont omis.
+type Opponent struct {
+	ID         int       `json:"id"`
+	Name       string    `json:"name"`
+	Level      int       `json:"level,omitempty"`
+	Talent     int       `json:"talent,omitempty"`
+	LeekCount  int       `json:"leek_count,omitempty"`
+	TotalLevel int       `json:"total_level,omitempty"`
+	Leeks      []LeekRef `json:"leeks,omitempty"`
+	Team       *Ref      `json:"team,omitempty"`
+}
+
+// Opponents lit la liste d'adversaires de garden/get-*-opponents.
+func Opponents(body []byte) ([]Opponent, error) {
+	var raw struct {
+		Opponents []Opponent `json:"opponents"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("adversaires : %w", err)
+	}
+	if raw.Opponents == nil {
+		raw.Opponents = []Opponent{}
+	}
+	return raw.Opponents, nil
+}
