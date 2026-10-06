@@ -1,6 +1,6 @@
 # leeks-mcp
 
-Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de lecture et cinq outils de potager (état, lancement de combats). Les outils de lecture renvoient un résumé JSON compact par défaut, ou la réponse brute de l'API avec `raw: true`.
+Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de lecture, cinq outils de potager (état, lancement de combats) et quatre outils de loadouts (équipement et capital des poireaux). Les outils de lecture renvoient un résumé JSON compact par défaut, ou la réponse brute de l'API avec `raw: true`.
 
 ## Outils
 
@@ -17,6 +17,10 @@ Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de 
 | `start_farmer_fight` | `target_id` optionnel, `wait` | oui |
 | `start_team_fight` | `composition_id`, `target_id` optionnel, `wait` | oui |
 | `start_boss_fight` | `boss` (id ou nom : `nasu_samurai`, `fennel_king`, `evil_pumpkin`), `participants` optionnel, `wait` | oui |
+| `list_loadouts` | — | oui |
+| `save_loadout` | `name`, `set_id` (mise à jour), `from_leek_id`, `weapons`, `chips` (noms), `stats` (capital par stat), `icon` | oui |
+| `apply_loadout` | `set_id`, `leek_id`, `use_restat` | oui |
+| `delete_loadout` | `set_id` | oui |
 
 Limites connues : `list_fights` ne voit que les 12 derniers combats renvoyés par `leek/get` ; les noms d'armes et de puces sont les clés anglaises de l'API.
 
@@ -25,6 +29,14 @@ Limites connues : `list_fights` ne voit que les 12 derniers combats renvoyés pa
 Les outils `start_*` consomment un combat du potager. Sans `target_id`, l'adversaire est tiré au sort parmi ceux que propose le matchmaking (`get_garden` les liste) ; la cible tirée est renvoyée (`target_id`, `target_name`). Sans `participants`, `start_boss_fight` engage tous les poireaux de l'éleveur du token.
 
 Par défaut la réponse est `{"fight_id", "status"}` (`status` 2 = généré, sinon en attente : `get_fight` répond « en génération » tant que le rapport n'est pas prêt). Avec `wait: true`, l'outil sonde le rapport toutes les 2 s pendant 60 s au plus et renvoie le même résumé que `get_fight`. Les erreurs de l'API (`error_fight_not_enough_fights`, `error_fight_no_such_team`…) sont renvoyées telles quelles.
+
+## Loadouts
+
+Les loadouts (ensembles d'équipement) sont le seul mécanisme de l'API pour changer l'équipement et le capital d'un poireau avec une clé API : les routes `leek/add-weapon`, `leek/remove-*` et `leek/spend-capital` exigent une session de navigateur (rôle `session` du catalogue `service/get-all`) et répondent `401 wrong_token` à une clé.
+
+Un loadout décrit un build complet : armes, puces, composants et **capital total investi par stat** (`{"strength": 700, "tp": 255}`), l'unité que `get_leek` renvoie dans `capital_spent`. Flux type : `get_leek` → `save_loadout name=… from_leek_id=… weapons=[…] stats={strength: 760}` → `apply_loadout`. `from_leek_id` part du build actuel du poireau (composants compris, pour ne pas les perdre) ; `weapons` et `chips` remplacent la liste, `stats` se fusionne stat par stat (0 retire la stat). Le capital total est vérifié localement contre celui du niveau ; le reste (niveau requis, emplacements, doublons) est vérifié par le serveur.
+
+`apply_loadout` équipe le poireau et investit le capital supplémentaire, ce qui est irréversible. Réduire le capital d'une stat exige `use_restat: true` et consomme une potion de restat (`no_restat_potion` sinon). Les erreurs de l'API (`not_enough_capital` avec `required` et `available`) sont renvoyées telles quelles ; `skipped` liste les objets non équipés.
 
 Hors périmètre : lots de combats (`*-batch`, réservés à LeekWars+), défis, arène, escouades de boss à plusieurs éleveurs. Le combat d'équipe n'a pas pu être vérifié sur un vrai compte (fixture écrite à la main).
 
@@ -57,5 +69,5 @@ npx -y @modelcontextprotocol/inspector --cli ./bin/leeks-mcp -e LEEKWARS_KEY_FIL
 ## Structure
 
 - `cmd/leeks-mcp` : serveur et déclaration des outils.
-- `internal/leekwars` : client HTTP (`Get`, `Post` JSON ; 5 requêtes/s, timeout 15 s), lecture du token, cache des armes et puces.
+- `internal/leekwars` : client HTTP (`Get`, `Post`, `Put`, `Delete` JSON ; 5 requêtes/s, un réessai sur 429, timeout 15 s), lecture du token, cache des armes et puces.
 - `internal/summary` : fonctions pures JSON brut → résumé, testées sur les fixtures de `testdata/`.
