@@ -84,6 +84,7 @@ type EntitySummary struct {
 	TP         int    `json:"tp"`
 	MP         int    `json:"mp"`
 	Summon     bool   `json:"summon,omitempty"`
+	LifeEnd    int    `json:"life_end"`
 }
 
 // Move est un déplacement.
@@ -330,6 +331,9 @@ func Fight(body []byte, items *leekwars.Items, leekID int) (*FightSummary, error
 	}
 	closeTurn()
 	s.Duration = len(s.Turns)
+	for i := range s.Entities {
+		s.Entities[i].LifeEnd = max(life[s.Entities[i].ID], 0)
+	}
 	sort.Slice(s.Entities, func(i, j int) bool { return s.Entities[i].ID < s.Entities[j].ID })
 	return s, nil
 }

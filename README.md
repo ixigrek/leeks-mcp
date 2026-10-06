@@ -17,6 +17,7 @@ Serveur MCP (stdio) pour l'API [LeekWars](https://leekwars.com) : six outils de 
 | `start_farmer_fight` | `target_id` optionnel, `wait` | oui |
 | `start_team_fight` | `composition_id`, `target_id` optionnel, `wait` | oui |
 | `start_boss_fight` | `boss` (id ou nom : `nasu_samurai`, `fennel_king`, `evil_pumpkin`), `participants` optionnel, `wait` | oui |
+| `run_batch` | `leek_id`, `n` (1 à 50), `type` (`solo`, `farmer`, `boss`), `boss` (type `boss`) | oui |
 | `list_loadouts` | — | oui |
 | `save_loadout` | `name`, `set_id` (mise à jour), `from_leek_id`, `weapons`, `chips` (noms), `stats` (capital par stat), `icon` | oui |
 | `apply_loadout` | `set_id`, `leek_id`, `use_restat` | oui |
@@ -30,6 +31,8 @@ Les outils `start_*` consomment un combat du potager. Sans `target_id`, l'advers
 
 Par défaut la réponse est `{"fight_id", "status"}` (`status` 2 = généré, sinon en attente : `get_fight` répond « en génération » tant que le rapport n'est pas prêt). Avec `wait: true`, l'outil sonde le rapport toutes les 2 s pendant 60 s au plus et renvoie le même résumé que `get_fight`. Les erreurs de l'API (`error_fight_not_enough_fights`, `error_fight_no_such_team`…) sont renvoyées telles quelles.
 
+`run_batch` enchaîne `n` combats au rythme d'un par seconde (adversaire retiré au sort à chaque combat, participants du boss = tous les poireaux de l'éleveur), après avoir vérifié qu'il reste assez de combats au potager, puis attend la fin de chacun et renvoie le bilan du poireau `leek_id` : `wins`, `draws`, `defeats`, `avg_turns`, `avg_life` (PV restants, 0 pour un mort) et `avg_life_wins`, `versions` (VERSION affichées au tour 1 des logs, repérées par `v<chiffre ou majuscule>…`, plusieurs jointes par ` + ` pour un combat de boss `_grp` + `_nasu`, `?` si aucune) et `defeat_ids`. Un échec de lancement arrête le lot sans perdre les combats déjà lancés ; les erreurs par combat sont listées dans `errors`.
+
 ## Loadouts
 
 Les loadouts (ensembles d'équipement) sont le seul mécanisme de l'API pour changer l'équipement et le capital d'un poireau avec une clé API : les routes `leek/add-weapon`, `leek/remove-*` et `leek/spend-capital` exigent une session de navigateur (rôle `session` du catalogue `service/get-all`) et répondent `401 wrong_token` à une clé.
@@ -38,7 +41,7 @@ Un loadout décrit un build complet : armes, puces, composants et **capital tota
 
 `apply_loadout` équipe le poireau et investit le capital supplémentaire, ce qui est irréversible. Réduire le capital d'une stat exige `use_restat: true` et consomme une potion de restat (`no_restat_potion` sinon). Les erreurs de l'API (`not_enough_capital` avec `required` et `available`) sont renvoyées telles quelles ; `skipped` liste les objets non équipés.
 
-Hors périmètre : lots de combats (`*-batch`, réservés à LeekWars+), défis, arène, escouades de boss à plusieurs éleveurs. Le combat d'équipe n'a pas pu être vérifié sur un vrai compte (fixture écrite à la main).
+Hors périmètre : lots de combats de l'API (`*-batch`, réservés à LeekWars+ ; `run_batch` lance les combats un par un), défis, arène, escouades de boss à plusieurs éleveurs. Le combat d'équipe n'a pas pu être vérifié sur un vrai compte (fixture écrite à la main).
 
 ## Build
 
