@@ -91,13 +91,13 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "start_boss_fight", Annotations: writes, Description: "Lance un combat contre un boss (id ou nom) avec les poireaux donnés, par défaut tous ceux de l'éleveur. Consomme un combat. Token requis."}, a.startBossFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "run_batch", Annotations: writes, Description: "Lance n combats (solo, farmer ou boss) au rythme d'un par seconde, attend leur fin et renvoie le bilan agrégé du poireau leek_id : victoires, nuls, défaites, tours et PV restants moyens, VERSION jouées (lues dans les logs du tour 1) et ids des défaites. Consomme n combats. Token requis."}, a.runBatch)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_loadouts", Annotations: readOnly, Description: "Loadouts (ensembles d'équipement) de l'éleveur : armes, puces, composants, capital par stat ; et les armes et puces possédées. Token requis."}, a.listLoadouts)
-	mcp.AddTool(s, &mcp.Tool{Name: "save_loadout", Annotations: writes, Description: "Crée ou met à jour (set_id) un loadout : armes et puces par nom, capital total par stat. from_leek_id part du build actuel d'un poireau (composants compris). Ne change rien sur le poireau : voir apply_loadout. Token requis."}, a.saveLoadout)
+	mcp.AddTool(s, &mcp.Tool{Name: "save_loadout", Annotations: writes, Description: "Crée ou met à jour (set_id) un loadout : armes et puces par nom, capital total par stat. from_leek_id part du build actuel d'un poireau (composants compris). Vérifié avant envoi pour leek_id (défaut from_leek_id, l'un des deux requis) : nombre d'armes et de puces, niveau des objets, capital total. Ne change rien sur le poireau : voir apply_loadout. Token requis."}, a.saveLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "apply_loadout", Annotations: writes, Description: "Applique un loadout à un poireau : équipe ses armes, puces et composants, et investit le capital supplémentaire (irréversible sans potion de restat). Réduire une stat exige use_restat. Token requis."}, a.applyLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "delete_loadout", Annotations: destroys, Description: "Supprime un loadout de l'éleveur (le poireau garde son équipement). Token requis."}, a.deleteLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_tree", Annotations: readOnly, Description: "IA en ligne de l'éleveur (nom, validité, lignes) et IA jouée par chaque poireau (leek_ais). Token requis."}, a.aiTree)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_read", Annotations: readOnly, Description: "Code d'une IA en ligne et sa VERSION ; avec file, compare seulement au fichier local (identique, VERSION en ligne et locale, première ligne divergente). Token requis."}, a.aiRead)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_push", Annotations: writes, Description: "Pousse des fichiers .leek locaux dans les IA en ligne de même nom (sans .leek), dans l'ordre _grp, _nasu, puis le reste : saute les fichiers déjà identiques, vérifie les problems de compilation, relit et compare octet par octet, signale une VERSION inchangée. S'arrête au premier échec. Pas de création d'IA. Token requis."}, a.aiPush)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id. Un id est d'abord cherché comme dans get_leek et les loadouts (item d'une arme, id d'une puce), puis comme dans les rapports de combat (id d'une arme, template d'une puce)."}, a.getItem)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id. Un id est cherché parmi les id et item des armes et les id des puces (à défaut, les template des puces des rapports) ; s'il désigne plusieurs objets, la réponse est ambiguous avec les candidats et le champ qui a correspondu (matched_by), à départager par kind."}, a.getItem)
 	return s
 }
 
@@ -135,7 +135,8 @@ type fightLogsArgs struct {
 }
 
 type itemArgs struct {
-	Query string `json:"query" jsonschema:"nom (ex. laser, sun spear) ou id numérique (item d'une arme, id d'une puce)"`
+	Query string `json:"query" jsonschema:"nom (ex. laser, sun spear) ou id numérique (id ou item d'une arme, id d'une puce)"`
+	Kind  string `json:"kind,omitempty" jsonschema:"weapon ou chip : ne chercher que ce type d'objet"`
 	rawFlag
 }
 
@@ -328,7 +329,17 @@ func (a *app) getItem(ctx context.Context, _ *mcp.CallToolRequest, in itemArgs) 
 	if err != nil {
 		return fail(err)
 	}
-	matches := items.Find(in.Query)
+	switch in.Kind {
+	case "", "weapon", "chip":
+	default:
+		return fail(fmt.Errorf("kind %q inconnu : attendu weapon ou chip", in.Kind))
+	}
+	var matches []leekwars.Match
+	for _, m := range items.Find(in.Query) {
+		if in.Kind == "" || m.Kind == in.Kind {
+			matches = append(matches, m)
+		}
+	}
 	if len(matches) == 0 {
 		return fail(fmt.Errorf("aucune arme ni puce ne correspond à %q", in.Query))
 	}
@@ -348,7 +359,9 @@ func (a *app) getItem(ctx context.Context, _ *mcp.CallToolRequest, in itemArgs) 
 	}
 	out := make([]summary.ItemSummary, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, summary.Item(m))
+		c := summary.Item(m)
+		c.MatchedBy = m.By
+		out = append(out, c)
 	}
 	return ok(map[string]any{"ambiguous": true, "candidates": out})
 }

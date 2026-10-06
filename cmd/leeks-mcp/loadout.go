@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/ixigrek/leeks-mcp/internal/leekwars"
 	"github.com/ixigrek/leeks-mcp/internal/summary"
@@ -41,6 +42,7 @@ type saveLoadoutArgs struct {
 	SetID      int            `json:"set_id,omitempty" jsonschema:"id du loadout à mettre à jour ; absent = création"`
 	Name       string         `json:"name,omitempty" jsonschema:"nom du loadout (requis à la création)"`
 	Icon       string         `json:"icon,omitempty" jsonschema:"icône : nom de caractéristique (strength, agility…) ou emoji ; défaut strength"`
+	LeekID     int            `json:"leek_id,omitempty" jsonschema:"poireau auquel le loadout est destiné : niveau des objets, nombre d'armes et de puces et capital sont vérifiés pour lui (défaut from_leek_id ; l'un des deux est requis)"`
 	FromLeekID int            `json:"from_leek_id,omitempty" jsonschema:"préremplir armes, puces, composants et capital depuis le build actuel de ce poireau (sinon, à la mise à jour, depuis le loadout existant)"`
 	Weapons    []string       `json:"weapons,omitempty" jsonschema:"armes (noms anglais de l'API, ex. laser) ; remplace la liste préremplie"`
 	Chips      []string       `json:"chips,omitempty" jsonschema:"puces (ex. flash) ; remplace la liste préremplie"`
@@ -50,6 +52,13 @@ type saveLoadoutArgs struct {
 func (a *app) saveLoadout(ctx context.Context, _ *mcp.CallToolRequest, in saveLoadoutArgs) (*mcp.CallToolResult, any, error) {
 	if !a.client.HasToken() {
 		return fail(errNoToken)
+	}
+	targetID := in.LeekID
+	if targetID == 0 {
+		targetID = in.FromLeekID
+	}
+	if targetID == 0 {
+		return fail(fmt.Errorf("leek_id ou from_leek_id requis : le loadout est vérifié pour ce poireau"))
 	}
 	items, err := a.items.Items(ctx)
 	if err != nil {
@@ -72,13 +81,11 @@ func (a *app) saveLoadout(ctx context.Context, _ *mcp.CallToolRequest, in saveLo
 			base.Stats = map[string]int{}
 		}
 	}
-	var level int
 	if in.FromLeekID != 0 {
 		build, err := a.build(ctx, in.FromLeekID)
 		if err != nil {
 			return fail(err)
 		}
-		level = build.Level
 		base.Weapons, base.Chips, base.Components = build.Weapons, build.Chips, build.Components
 		base.Stats = summary.CapitalSpent(build.Level, build.Stats)
 	}
@@ -117,14 +124,12 @@ func (a *app) saveLoadout(ctx context.Context, _ *mcp.CallToolRequest, in saveLo
 			base.Stats[stat] = capital
 		}
 	}
-	if level != 0 {
-		total := 0
-		for _, c := range base.Stats {
-			total += c
-		}
-		if max := summary.TotalCapital(level); total > max {
-			return fail(fmt.Errorf("%d capital demandé, %d au total au niveau %d", total, max, level))
-		}
+	target, err := a.build(ctx, targetID)
+	if err != nil {
+		return fail(err)
+	}
+	if problems := checkLoadout(base, target, items); len(problems) > 0 {
+		return fail(fmt.Errorf("loadout refusé pour %s (niveau %d) : %s", target.Name, target.Level, strings.Join(problems, " ; ")))
 	}
 	// L'API attend les listes et les stats en chaînes JSON, comme le client officiel.
 	payload := map[string]any{
@@ -191,6 +196,37 @@ func (a *app) deleteLoadout(ctx context.Context, _ *mcp.CallToolRequest, in dele
 		return fail(err)
 	}
 	return ok(map[string]any{"deleted": in.SetID})
+}
+
+// checkLoadout liste ce qui empêche le poireau de porter le loadout : nombre
+// d'armes et de puces, niveau des objets, capital total. L'API ne vérifie rien à
+// l'enregistrement.
+func checkLoadout(l summary.Loadout, leek *summary.LeekBuild, items *leekwars.Items) []string {
+	var problems []string
+	if len(l.Weapons) > leek.MaxWeapons {
+		problems = append(problems, fmt.Sprintf("%d armes pour %d emplacements", len(l.Weapons), leek.MaxWeapons))
+	}
+	if len(l.Chips) > leek.MaxChips {
+		problems = append(problems, fmt.Sprintf("%d puces pour %d emplacements", len(l.Chips), leek.MaxChips))
+	}
+	for _, item := range l.Weapons {
+		if w := items.WeaponByItem(item); w != nil && w.Level > leek.Level {
+			problems = append(problems, fmt.Sprintf("%s niveau %d", w.Name, w.Level))
+		}
+	}
+	for _, id := range l.Chips {
+		if c := items.ChipByID(id); c != nil && c.Level > leek.Level {
+			problems = append(problems, fmt.Sprintf("%s niveau %d", c.Name, c.Level))
+		}
+	}
+	total := 0
+	for _, c := range l.Stats {
+		total += c
+	}
+	if max := summary.TotalCapital(leek.Level); total > max {
+		problems = append(problems, fmt.Sprintf("%d capital demandé, %d au total", total, max))
+	}
+	return problems
 }
 
 // build lit l'état privé d'un poireau.

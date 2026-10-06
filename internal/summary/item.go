@@ -19,6 +19,8 @@ type ItemSummary struct {
 	Cooldown   *int              `json:"cooldown,omitempty"`
 	MaxUses    int               `json:"max_uses"`
 	Effects    []leekwars.Effect `json:"effects"`
+	// Champ qui a correspondu (id, item, template, name), dans une réponse ambiguë.
+	MatchedBy string `json:"matched_by,omitempty"`
 }
 
 // Item convertit un résultat de recherche en résumé.

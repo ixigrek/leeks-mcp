@@ -2,6 +2,7 @@ package leekwars
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -62,23 +63,29 @@ func TestChipByIDAndByTemplate(t *testing.T) {
 	}
 }
 
-// Find par nombre lit d'abord un identifiant d'objet (id de puce, item d'arme),
-// unique : 14 = leather_boots, pas rockfall (template 14).
-func TestFindByNumericIDPrefersItemIDs(t *testing.T) {
+// Find par nombre renvoie tous les objets dont l'id ou l'item (arme) ou l'id (puce)
+// vaut ce nombre, avec le champ qui a correspondu ; le template d'une puce n'est
+// pas consulté s'il y a déjà un résultat (14 = leather_boots, pas rockfall).
+func TestFindByNumericIDListsEveryItem(t *testing.T) {
 	items := loadItems(t)
-	for q, want := range map[string]string{"174": "manumission", "14": "leather_boots", "11": "vaccine", "42": "laser"} {
-		got := items.Find(q)
-		if len(got) != 1 {
-			t.Fatalf("Find(%s) = %+v, attendu %s seul", q, got, want)
+	for q, want := range map[string]string{
+		"174": "chip:manumission:id",
+		"14":  "weapon:katana:id chip:leather_boots:id",
+		"25":  "weapon:lightninger:id chip:steroid:id",
+		"42":  "weapon:sun_spear:id weapon:laser:item",
+	} {
+		var got []string
+		for _, m := range items.Find(q) {
+			name := ""
+			if m.Weapon != nil {
+				name = m.Weapon.Name
+			} else {
+				name = m.Chip.Name
+			}
+			got = append(got, m.Kind+":"+name+":"+m.By)
 		}
-		name := ""
-		if got[0].Weapon != nil {
-			name = got[0].Weapon.Name
-		} else {
-			name = got[0].Chip.Name
-		}
-		if name != want {
-			t.Fatalf("Find(%s) = %s, attendu %s", q, name, want)
+		if strings.Join(got, " ") != want {
+			t.Fatalf("Find(%s) = %v, attendu %s", q, got, want)
 		}
 	}
 }
@@ -101,7 +108,7 @@ func TestFindByNameIgnoresCaseAndSeparators(t *testing.T) {
 func TestFindByNumericIDFallsBackToReportIDs(t *testing.T) {
 	items := loadItems(t)
 	got := items.Find("61")
-	if len(got) != 1 || got[0].Chip == nil || got[0].Chip.Name != "venom" {
+	if len(got) != 1 || got[0].Chip == nil || got[0].Chip.Name != "venom" || got[0].By != "template" {
 		t.Fatalf("Find(61) = %+v", got)
 	}
 }

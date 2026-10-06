@@ -97,6 +97,7 @@ type LeekBuild struct {
 	Level      int
 	Capital    int
 	MaxWeapons int
+	MaxChips   int
 	Stats      map[string]int // caractéristiques hors équipement
 	Weapons    []int          // templates (arme : item)
 	Chips      []int          // templates
@@ -111,6 +112,7 @@ func Build(privateJSON []byte) (*LeekBuild, error) {
 		Level      int    `json:"level"`
 		Capital    int    `json:"capital"`
 		MaxWeapons int    `json:"max_weapons"`
+		MaxChips   int    `json:"max_chips"`
 		Weapons    []struct {
 			Template int `json:"template"`
 		} `json:"weapons"`
@@ -130,7 +132,7 @@ func Build(privateJSON []byte) (*LeekBuild, error) {
 		return nil, fmt.Errorf("leek/get-private : %w", err)
 	}
 	b := &LeekBuild{
-		ID: raw.ID, Name: raw.Name, Level: raw.Level, Capital: raw.Capital, MaxWeapons: raw.MaxWeapons,
+		ID: raw.ID, Name: raw.Name, Level: raw.Level, Capital: raw.Capital, MaxWeapons: raw.MaxWeapons, MaxChips: raw.MaxChips,
 		Stats: map[string]int{}, Weapons: []int{}, Chips: []int{}, Components: []LoadoutComponent{},
 	}
 	for _, name := range statNames {

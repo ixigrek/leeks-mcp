@@ -58,8 +58,10 @@ type Chip struct {
 }
 
 // Match est un résultat de recherche : exactement un des deux pointeurs est non nul.
+// By dit quel champ a correspondu : name, id, item ou template.
 type Match struct {
 	Kind   string
+	By     string
 	Weapon *Weapon
 	Chip   *Chip
 }
@@ -144,40 +146,41 @@ func (it *Items) ChipNameByTemplate(template int) string {
 }
 
 // Find cherche par nom, sans tenir compte de la casse ni des séparateurs
-// (« sun spear » = sun_spear), ou par identifiant numérique. Un nombre est d'abord
-// lu comme identifiant d'objet (item d'une arme, id d'une puce : ceux de leek/get,
-// de l'inventaire et des loadouts), espace où il est unique ; à défaut comme
-// identifiant de rapport (id d'une arme, template d'une puce).
+// (« sun spear » = sun_spear), ou par identifiant numérique : id et item d'une
+// arme, id d'une puce (ceux que montrent get_leek, l'inventaire et les loadouts),
+// et à défaut template d'une puce (rapports de combat seulement). Un nombre peut
+// désigner plusieurs objets (25 = arme lightninger et puce steroid) : tous sont
+// renvoyés, à l'appelant de signaler l'ambiguïté.
 func (it *Items) Find(query string) []Match {
 	var out []Match
 	q := strings.TrimSpace(query)
 	if n, err := strconv.Atoi(q); err == nil {
-		if w := it.WeaponByItem(n); w != nil {
-			out = append(out, Match{Kind: "weapon", Weapon: w})
+		if w := it.WeaponByID(n); w != nil {
+			out = append(out, Match{Kind: "weapon", By: "id", Weapon: w})
+		}
+		if w := it.WeaponByItem(n); w != nil && (len(out) == 0 || out[0].Weapon != w) {
+			out = append(out, Match{Kind: "weapon", By: "item", Weapon: w})
 		}
 		if c := it.ChipByID(n); c != nil {
-			out = append(out, Match{Kind: "chip", Chip: c})
+			out = append(out, Match{Kind: "chip", By: "id", Chip: c})
 		}
 		if len(out) > 0 {
 			return out
 		}
-		if w := it.WeaponByID(n); w != nil {
-			out = append(out, Match{Kind: "weapon", Weapon: w})
-		}
 		if c := it.ChipByTemplate(n); c != nil {
-			out = append(out, Match{Kind: "chip", Chip: c})
+			out = append(out, Match{Kind: "chip", By: "template", Chip: c})
 		}
 		return out
 	}
 	key := normalize(q)
 	for _, w := range it.weapons {
 		if normalize(w.Name) == key {
-			out = append(out, Match{Kind: "weapon", Weapon: w})
+			out = append(out, Match{Kind: "weapon", By: "name", Weapon: w})
 		}
 	}
 	for _, c := range it.chips {
 		if normalize(c.Name) == key {
-			out = append(out, Match{Kind: "chip", Chip: c})
+			out = append(out, Match{Kind: "chip", By: "name", Chip: c})
 		}
 	}
 	return out

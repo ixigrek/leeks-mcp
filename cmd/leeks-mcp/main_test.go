@@ -281,6 +281,14 @@ func TestGetItemByNameAndUnknown(t *testing.T) {
 	if isErr || !strings.Contains(text, `"item":42`) {
 		t.Fatalf("laser : %.300s", text)
 	}
+	text, isErr = call(t, cs, "get_item", map[string]any{"query": "25"})
+	if isErr || !strings.Contains(text, `"ambiguous":true`) || !strings.Contains(text, `"name":"lightninger"`) || !strings.Contains(text, `"name":"steroid"`) || !strings.Contains(text, `"matched_by":"id"`) {
+		t.Fatalf("25 ambigu : %.400s", text)
+	}
+	text, isErr = call(t, cs, "get_item", map[string]any{"query": "25", "kind": "chip"})
+	if isErr || strings.Contains(text, "ambiguous") || !strings.Contains(text, `"name":"steroid"`) {
+		t.Fatalf("25 puce : %.400s", text)
+	}
 	text, isErr = call(t, cs, "get_item", map[string]any{"query": "objet_imaginaire"})
 	if !isErr {
 		t.Fatalf("erreur attendue : %s", text)
