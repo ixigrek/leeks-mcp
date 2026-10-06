@@ -32,10 +32,10 @@ type AIRef struct {
 
 // Record est le bilan de combats.
 type Record struct {
-	Victories int     `json:"victories"`
-	Draws     int     `json:"draws"`
-	Defeats   int     `json:"defeats"`
-	Ratio     float64 `json:"ratio"`
+	Victories int   `json:"victories"`
+	Draws     int   `json:"draws"`
+	Defeats   int   `json:"defeats"`
+	Ratio     Ratio `json:"ratio"`
 }
 
 // Component est un composant équipé (données privées).
@@ -110,7 +110,7 @@ func Leek(publicJSON, privateJSON []byte, items *leekwars.Items) (*LeekSummary, 
 		TotalStats: map[string]int{},
 		Weapons:    []WeaponRef{},
 		Chips:      []ChipRef{},
-		Record:     Record{raw.Victories, raw.Draws, raw.Defeats, float64(raw.Ratio)},
+		Record:     Record{raw.Victories, raw.Draws, raw.Defeats, Ratio(raw.Ratio)},
 		Fights:     []FightLine{},
 	}
 	for _, name := range statNames {

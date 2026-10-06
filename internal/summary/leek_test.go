@@ -1,6 +1,11 @@
 package summary
 
-import "testing"
+import (
+	"encoding/json"
+	"math"
+	"strings"
+	"testing"
+)
 
 func TestLeekResolvesEquipmentAndRecord(t *testing.T) {
 	got, err := Leek(fixture(t, "leek_135146.json"), nil, items(t))
@@ -65,3 +70,23 @@ func TestLeekMergesPrivateData(t *testing.T) {
 	}
 }
 
+// Un poireau sans défaite a "ratio": "∞" ; le résumé le garde tel quel.
+func TestLeekInfiniteRatio(t *testing.T) {
+	got, err := Leek(fixture(t, "leek_135231.json"), nil, items(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Record.Victories != 2 || got.Record.Defeats != 0 || !math.IsInf(float64(got.Record.Ratio), 1) {
+		t.Fatalf("record : %+v", got.Record)
+	}
+	out, err := json.Marshal(got.Record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"ratio":"∞"`) {
+		t.Fatalf("ratio sérialisé : %s", out)
+	}
+	if len(got.Chips) != 6 || got.Chips[3].ID != 5 || got.Chips[3].Name != "flame" {
+		t.Fatalf("puces : %+v", got.Chips)
+	}
+}

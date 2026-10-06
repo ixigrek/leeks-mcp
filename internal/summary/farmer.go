@@ -70,7 +70,7 @@ func Farmer(body []byte, items *leekwars.Items) (*FarmerSummary, error) {
 	f := env.Farmer
 	s := &FarmerSummary{
 		ID: f.ID, Name: f.Name, Talent: f.Talent,
-		Record:    Record{f.Victories, f.Draws, f.Defeats, float64(f.Ratio)},
+		Record:    Record{f.Victories, f.Draws, f.Defeats, Ratio(f.Ratio)},
 		Habs:      f.Habs,
 		Crystals:  f.Crystals,
 		Leeks:     []LeekRef{},
