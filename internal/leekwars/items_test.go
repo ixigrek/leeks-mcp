@@ -39,9 +39,13 @@ func TestWeaponByIDAndByItem(t *testing.T) {
 
 func TestChipByID(t *testing.T) {
 	items := loadItems(t)
-	c := items.ChipByID(14)
-	if c == nil || c.Name != "leather_boots" {
-		t.Fatalf("ChipByID(14) = %+v", c)
+	// L'identifiant partout utilisé (rapports, leek/get, loadouts) est le template,
+	// pas le champ id de chip/get-all : 14 = rockfall (id 32), 16 = stalactite (id 30).
+	for id, name := range map[int]string{14: "rockfall", 16: "stalactite", 30: "leather_boots"} {
+		c := items.ChipByID(id)
+		if c == nil || c.Name != name {
+			t.Fatalf("ChipByID(%d) = %+v, attendu %s", id, c, name)
+		}
 	}
 }
 

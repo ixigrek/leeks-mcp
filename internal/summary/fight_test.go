@@ -1,6 +1,9 @@
 package summary
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func fightSummary(t *testing.T) *FightSummary {
 	t.Helper()
@@ -117,5 +120,30 @@ func TestFightFilteredByLeekKeepsOnlyThatEntity(t *testing.T) {
 func TestFightFilteredByUnknownLeekFails(t *testing.T) {
 	if _, err := Fight(fixture(t, "fight_53988601.json"), items(t), 999); err == nil {
 		t.Fatal("erreur attendue pour un poireau absent du combat")
+	}
+}
+
+// Les USE_CHIP portent le template de la puce, qui diffère de son id dans
+// chip/get-all : 38 = armoring, 40 = puny_bulb, 1 = bandage (et non shock).
+func TestFightChipNamesUseTemplate(t *testing.T) {
+	got, err := Fight(fixture(t, "fight_53994496.json"), items(t), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var e *EntityTurn
+	for i := range got.Turns[0].Entities {
+		if got.Turns[0].Entities[i].ID == 1 {
+			e = &got.Turns[0].Entities[i]
+		}
+	}
+	if e == nil {
+		t.Fatal("entité 1 absente du tour 1")
+	}
+	var names []string
+	for _, c := range e.Chips {
+		names = append(names, c.Chip)
+	}
+	if want := "armoring puny_bulb bandage"; strings.Join(names, " ") != want {
+		t.Fatalf("puces du tour 1 : %v, attendu %s", names, want)
 	}
 }

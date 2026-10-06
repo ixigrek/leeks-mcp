@@ -24,12 +24,12 @@ func TestLeekResolvesEquipmentAndRecord(t *testing.T) {
 	}
 	var boots bool
 	for _, c := range got.Chips {
-		if c.Name == "leather_boots" && c.ID == 14 {
+		if c.Name == "rockfall" && c.ID == 14 {
 			boots = true
 		}
 	}
 	if !boots {
-		t.Fatalf("leather_boots absente : %+v", got.Chips)
+		t.Fatalf("rockfall absente : %+v", got.Chips)
 	}
 	if got.AI.Name != "force" {
 		t.Fatalf("ai = %+v", got.AI)

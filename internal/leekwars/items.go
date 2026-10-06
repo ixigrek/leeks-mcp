@@ -37,9 +37,13 @@ type Weapon struct {
 	Effects    []Effect `json:"effects"`
 }
 
-// Chip n'a qu'un identifiant : ID = leek/get → chips[].template = USE_CHIP.
+// Chip porte aussi deux identifiants, mais seul Template compte : c'est lui que
+// portent les actions USE_CHIP des rapports, leek/get → chips[].template,
+// l'inventaire de l'éleveur et les loadouts. ID (chip/get-all) n'est utilisé
+// nulle part ailleurs et ne doit pas servir de clé.
 type Chip struct {
 	ID         int      `json:"id"`
+	Template   int      `json:"template"`
 	Name       string   `json:"name"`
 	Level      int      `json:"level"`
 	MinRange   int      `json:"min_range"`
@@ -62,11 +66,11 @@ type Match struct {
 
 // Items est le cache des armes et puces du jeu.
 type Items struct {
-	weaponsByID   map[int]*Weapon
-	weaponsByItem map[int]*Weapon
-	chipsByID     map[int]*Chip
-	weapons       []*Weapon
-	chips         []*Chip
+	weaponsByID     map[int]*Weapon
+	weaponsByItem   map[int]*Weapon
+	chipsByTemplate map[int]*Chip
+	weapons         []*Weapon
+	chips           []*Chip
 }
 
 // ParseItems construit le cache à partir des corps de weapon/get-all et chip/get-all.
@@ -84,9 +88,9 @@ func ParseItems(weaponsJSON, chipsJSON []byte) (*Items, error) {
 		return nil, fmt.Errorf("chip/get-all : %w", err)
 	}
 	items := &Items{
-		weaponsByID:   map[int]*Weapon{},
-		weaponsByItem: map[int]*Weapon{},
-		chipsByID:     map[int]*Chip{},
+		weaponsByID:     map[int]*Weapon{},
+		weaponsByItem:   map[int]*Weapon{},
+		chipsByTemplate: map[int]*Chip{},
 	}
 	for _, wp := range w.Weapons {
 		items.weaponsByID[wp.ID] = wp
@@ -94,7 +98,7 @@ func ParseItems(weaponsJSON, chipsJSON []byte) (*Items, error) {
 		items.weapons = append(items.weapons, wp)
 	}
 	for _, ch := range c.Chips {
-		items.chipsByID[ch.ID] = ch
+		items.chipsByTemplate[ch.Template] = ch
 		items.chips = append(items.chips, ch)
 	}
 	return items, nil
@@ -106,8 +110,8 @@ func (it *Items) WeaponByID(id int) *Weapon { return it.weaponsByID[id] }
 // WeaponByItem résout l'identifiant utilisé dans leek/get (template).
 func (it *Items) WeaponByItem(item int) *Weapon { return it.weaponsByItem[item] }
 
-// ChipByID résout une puce.
-func (it *Items) ChipByID(id int) *Chip { return it.chipsByID[id] }
+// ChipByID résout une puce par son template, l'identifiant des rapports et de leek/get.
+func (it *Items) ChipByID(id int) *Chip { return it.chipsByTemplate[id] }
 
 // WeaponName renvoie le nom d'une arme par ID de rapport, ou "weapon_<id>".
 func (it *Items) WeaponName(id int) string {
@@ -117,7 +121,7 @@ func (it *Items) WeaponName(id int) string {
 	return "weapon_" + strconv.Itoa(id)
 }
 
-// ChipName renvoie le nom d'une puce, ou "chip_<id>".
+// ChipName renvoie le nom d'une puce par template, ou "chip_<id>".
 func (it *Items) ChipName(id int) string {
 	if c := it.ChipByID(id); c != nil {
 		return c.Name
@@ -125,7 +129,7 @@ func (it *Items) ChipName(id int) string {
 	return "chip_" + strconv.Itoa(id)
 }
 
-// Find cherche par identifiant numérique (arme : id ou item ; puce : id) ou par
+// Find cherche par identifiant numérique (arme : id ou item ; puce : template) ou par
 // nom, sans tenir compte de la casse ni des séparateurs (« sun spear » = sun_spear).
 func (it *Items) Find(query string) []Match {
 	var out []Match

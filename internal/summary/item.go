@@ -30,10 +30,11 @@ func Item(m leekwars.Match) ItemSummary {
 			Area: w.Area, Los: w.Los, MaxUses: w.MaxUses, Effects: w.Effects,
 		}
 	}
+	// Pour une puce, l'id exposé est le template : seul identifiant utile côté API.
 	c := m.Chip
 	cd := c.Cooldown
 	return ItemSummary{
-		Kind: "chip", ID: c.ID, Name: c.Name, Level: c.Level,
+		Kind: "chip", ID: c.Template, Name: c.Name, Level: c.Level,
 		Cost: c.Cost, MinRange: c.MinRange, MaxRange: c.MaxRange, LaunchType: c.LaunchType,
 		Area: c.Area, Los: c.Los, Cooldown: &cd, MaxUses: c.MaxUses, Effects: c.Effects,
 	}

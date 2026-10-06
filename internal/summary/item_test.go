@@ -16,7 +16,7 @@ func TestItemFromWeaponKeepsBothIdentifiers(t *testing.T) {
 func TestItemFromChipHasCooldownAndNoItem(t *testing.T) {
 	it := items(t)
 	got := Item(it.Find("leather_boots")[0])
-	if got.Kind != "chip" || got.ID != 14 || got.Item != 0 || got.Cooldown == nil {
+	if got.Kind != "chip" || got.ID != 30 || got.Item != 0 || got.Cooldown == nil {
 		t.Fatalf("Item(leather_boots) = %+v", got)
 	}
 }
