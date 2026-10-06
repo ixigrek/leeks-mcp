@@ -1,6 +1,7 @@
 package leekwars
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -41,38 +42,60 @@ func (c *Client) HasToken() bool { return c.token != "" }
 // Get appelle GET /api/<path> et renvoie le corps brut. Une réponse HTTP non 200
 // ou un corps {"success": false} devient une erreur qui ne cite jamais le token.
 func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
+	return c.do(ctx, http.MethodGet, path, nil, "")
+}
+
+// Post appelle POST /api/<path> avec payload sérialisé en JSON et renvoie le corps brut.
+func (c *Client) Post(ctx context.Context, path string, payload any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("POST %s : encodage : %w", path, err)
+	}
+	return c.do(ctx, http.MethodPost, path, bytes.NewReader(data), "application/json; charset=UTF-8")
+}
+
+// do envoie la requête après passage par le limiteur, ajoute le Bearer et
+// traduit les réponses en échec (HTTP ≠ 200 ou success:false) en erreur sans le token.
+func (c *Client) do(ctx context.Context, method, path string, body io.Reader, contentType string) ([]byte, error) {
 	if err := c.wait(ctx); err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/"+path, nil)
+	req, err := http.NewRequestWithContext(ctx, method, c.base+"/api/"+path, body)
 	if err != nil {
 		return nil, err
 	}
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("GET %s : %w", path, err)
+		return nil, fmt.Errorf("%s %s : %w", method, path, err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("GET %s : lecture du corps : %w", path, err)
+		return nil, fmt.Errorf("%s %s : lecture du corps : %w", method, path, err)
 	}
-	if msg, failed := apiError(body); failed || resp.StatusCode != http.StatusOK {
+	if msg, failed := apiError(data); failed || resp.StatusCode != http.StatusOK {
 		if msg == "" {
-			msg = strings.TrimSpace(string(body))
+			msg = strings.TrimSpace(string(data))
+			// Certains échecs (garden/start-*) renvoient une simple chaîne JSON.
+			var bare string
+			if json.Unmarshal(data, &bare) == nil {
+				msg = bare
+			}
 			if len(msg) > 200 {
 				msg = msg[:200]
 			}
 		}
-		return nil, fmt.Errorf("GET %s : HTTP %d : %s", path, resp.StatusCode, msg)
+		return nil, fmt.Errorf("%s %s : HTTP %d : %s", method, path, resp.StatusCode, msg)
 	}
-	return body, nil
+	return data, nil
 }
 
-// apiError détecte un corps {"success": false, "error": "..."}.
 func apiError(body []byte) (string, bool) {
 	var probe struct {
 		Success *bool           `json:"success"`
