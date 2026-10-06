@@ -16,7 +16,7 @@ type effectKind struct {
 	Stat string
 }
 
-// effectKinds suit l'enum des effets du client LeekWars.
+// effectKinds suit l'enum EffectType du client LeekWars (src/model/effect.ts).
 var effectKinds = map[int]effectKind{
 	1:  {"damage", "strength"},
 	2:  {"heal", "wisdom"},
@@ -28,8 +28,8 @@ var effectKinds = map[int]effectKind{
 	8:  {"buff_tp", "science"},
 	9:  {"debuff", ""},
 	10: {"teleport", ""},
-	11: {"permutation", ""},
-	12: {"vitality", "wisdom"},
+	11: {"invert", ""},
+	12: {"boost_max_life", "wisdom"},
 	13: {"poison", "magic"},
 	14: {"summon", ""},
 	15: {"resurrect", ""},
@@ -50,8 +50,38 @@ var effectKinds = map[int]effectKind{
 	30: {"nova_damage", "science"},
 	31: {"raw_buff_mp", ""},
 	32: {"raw_buff_tp", ""},
+	33: {"poison_to_science", ""},
+	34: {"damage_to_absolute_shield", ""},
+	35: {"damage_to_strength", ""},
+	36: {"nova_damage_to_magic", ""},
+	37: {"raw_absolute_shield", ""},
+	38: {"raw_buff_strength", ""},
+	39: {"raw_buff_magic", ""},
+	40: {"raw_buff_science", ""},
+	41: {"raw_buff_agility", ""},
+	42: {"raw_buff_resistance", ""},
+	43: {"propagation", ""},
+	44: {"raw_buff_wisdom", ""},
+	45: {"nova_vitality", ""},
+	46: {"attract", ""},
 	47: {"shackle_agility", "magic"},
 	48: {"shackle_wisdom", "magic"},
+	49: {"remove_shackle", ""},
+	50: {"moved_to_mp", ""},
+	51: {"push", ""},
+	52: {"raw_buff_power", ""},
+	53: {"repel", ""},
+	54: {"raw_relative_shield", ""},
+	55: {"ally_killed_to_agility", ""},
+	56: {"kill_to_tp", ""},
+	57: {"raw_heal", ""},
+	58: {"critical_to_heal", ""},
+	59: {"add_state", ""},
+	60: {"total_debuff", ""},
+	61: {"steal_life", ""},
+	62: {"multiply_stats", ""},
+	63: {"damage_to_resistance", ""},
+	64: {"superinfection", ""},
 }
 
 // Chance de coup critique : agilité/10 %, dégâts et soins multipliés par criticalFactor.
@@ -129,6 +159,8 @@ type ScoutSummary struct {
 	Weapons  []ScoutItem    `json:"weapons"`
 	Chips    []ScoutItem    `json:"chips"`
 	VsUs     *VsUs          `json:"vs_us,omitempty"`
+	// Pourquoi vs_us manque (pas de token, historique indisponible).
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Scout résume leek/get d'un adversaire : stats totales (composants compris),

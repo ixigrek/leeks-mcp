@@ -202,7 +202,7 @@ func TestToolsAreAnnotated(t *testing.T) {
 	}
 }
 
-func TestListsTwentyTools(t *testing.T) {
+func TestListsTwentyOneTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -214,7 +214,7 @@ func TestListsTwentyTools(t *testing.T) {
 	}
 	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "fight_stats", "get_item",
 		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight", "run_batch",
-		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout", "ai_tree", "ai_read", "ai_push"}
+		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout", "ai_tree", "ai_read", "ai_push", "scout"}
 	if len(res.Tools) != len(want) {
 		t.Fatalf("%d outils, attendu %d : %v", len(res.Tools), len(want), names)
 	}
@@ -357,5 +357,41 @@ func TestAPIErrorIsReportedAsToolError(t *testing.T) {
 	text, isErr := call(t, cs, "get_fight", map[string]any{"id": 1})
 	if !isErr || !strings.Contains(text, "not_found") {
 		t.Fatalf("erreur API attendue : %s", text)
+	}
+}
+
+func TestScout(t *testing.T) {
+	cs := session(t, "tok")
+	text, isErr := call(t, cs, "scout", map[string]any{"leek_id": 135146})
+	if isErr {
+		t.Fatal(text)
+	}
+	var s struct {
+		Life    int `json:"life"`
+		Weapons []struct {
+			Name    string `json:"name"`
+			Effects []struct {
+				Min int `json:"min"`
+				Max int `json:"max"`
+			} `json:"effects"`
+		} `json:"weapons"`
+		VsUs *struct {
+			Defeats int `json:"defeats"`
+		} `json:"vs_us"`
+		Notes []string `json:"notes"`
+	}
+	if err := json.Unmarshal([]byte(text), &s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Life != 1736 || s.Weapons[0].Name != "laser" || s.Weapons[0].Effects[0].Min != 310 {
+		t.Fatalf("fiche : %.300s", text)
+	}
+	if s.VsUs == nil || len(s.Notes) != 0 {
+		t.Fatalf("vs_us attendu avec token : %.300s", text)
+	}
+
+	text, isErr = call(t, session(t, ""), "scout", map[string]any{"leek_id": 135146})
+	if isErr || strings.Contains(text, `"vs_us"`) || !strings.Contains(text, "token requis") {
+		t.Fatalf("sans token : %.300s", text)
 	}
 }
