@@ -1,5 +1,6 @@
 // leeks-mcp est un serveur MCP (stdio) pour l'API LeekWars : lecture des fiches
-// et rapports, lancement de combats, loadouts (équipement et capital des poireaux).
+// et rapports, lancement de combats, loadouts (équipement et capital des poireaux),
+// lecture et écriture des IA en ligne.
 package main
 
 import (
@@ -90,6 +91,9 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "save_loadout", Annotations: writes, Description: "Crée ou met à jour (set_id) un loadout : armes et puces par nom, capital total par stat. from_leek_id part du build actuel d'un poireau (composants compris). Ne change rien sur le poireau : voir apply_loadout. Token requis."}, a.saveLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "apply_loadout", Annotations: writes, Description: "Applique un loadout à un poireau : équipe ses armes, puces et composants, et investit le capital supplémentaire (irréversible sans potion de restat). Réduire une stat exige use_restat. Token requis."}, a.applyLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "delete_loadout", Annotations: destroys, Description: "Supprime un loadout de l'éleveur (le poireau garde son équipement). Token requis."}, a.deleteLoadout)
+	mcp.AddTool(s, &mcp.Tool{Name: "ai_tree", Annotations: readOnly, Description: "IA en ligne de l'éleveur (nom, validité, lignes) et IA jouée par chaque poireau (leek_ais). Token requis."}, a.aiTree)
+	mcp.AddTool(s, &mcp.Tool{Name: "ai_read", Annotations: readOnly, Description: "Code d'une IA en ligne et sa VERSION ; avec file, compare seulement au fichier local (identique, VERSION en ligne et locale, première ligne divergente). Token requis."}, a.aiRead)
+	mcp.AddTool(s, &mcp.Tool{Name: "ai_push", Annotations: writes, Description: "Pousse des fichiers .leek locaux dans les IA en ligne de même nom (sans .leek), dans l'ordre _grp, _nasu, puis le reste : saute les fichiers déjà identiques, vérifie les problems de compilation, relit et compare octet par octet, signale une VERSION inchangée. S'arrête au premier échec. Pas de création d'IA. Token requis."}, a.aiPush)
 	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id."}, a.getItem)
 	return s
 }

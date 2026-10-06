@@ -193,14 +193,14 @@ func TestToolsAreAnnotated(t *testing.T) {
 		if tool.Annotations == nil {
 			t.Fatalf("outil %s sans annotations", tool.Name)
 		}
-		write := strings.HasPrefix(tool.Name, "start_") || strings.HasSuffix(tool.Name, "_loadout")
+		write := strings.HasPrefix(tool.Name, "start_") || strings.HasSuffix(tool.Name, "_loadout") || tool.Name == "ai_push"
 		if tool.Annotations.ReadOnlyHint == write {
 			t.Fatalf("outil %s : ReadOnlyHint = %v", tool.Name, tool.Annotations.ReadOnlyHint)
 		}
 	}
 }
 
-func TestListsFifteenTools(t *testing.T) {
+func TestListsEighteenTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -212,7 +212,7 @@ func TestListsFifteenTools(t *testing.T) {
 	}
 	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item",
 		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight",
-		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout"}
+		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout", "ai_tree", "ai_read", "ai_push"}
 	if len(res.Tools) != len(want) {
 		t.Fatalf("%d outils, attendu %d : %v", len(res.Tools), len(want), names)
 	}
