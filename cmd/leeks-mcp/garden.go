@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"strconv"
+	"time"
 
 	"github.com/ixigrek/leeks-mcp/internal/summary"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -74,4 +76,112 @@ func (a *app) opponents(ctx context.Context, path string) ([]summary.Opponent, e
 		return nil, err
 	}
 	return summary.Opponents(body)
+}
+
+type soloFightArgs struct {
+	LeekID   int  `json:"leek_id" jsonschema:"id du poireau qui combat"`
+	TargetID int  `json:"target_id,omitempty" jsonschema:"id du poireau adverse ; absent = tirage au sort parmi les adversaires proposés"`
+	Wait     bool `json:"wait,omitempty" jsonschema:"attendre la génération du combat et renvoyer son résumé (comme get_fight)"`
+}
+
+func (a *app) startSoloFight(ctx context.Context, _ *mcp.CallToolRequest, in soloFightArgs) (*mcp.CallToolResult, any, error) {
+	if !a.client.HasToken() {
+		return fail(errNoToken)
+	}
+	target, picked, err := a.target(ctx, in.TargetID, "garden/get-leek-opponents/"+strconv.Itoa(in.LeekID))
+	if err != nil {
+		return fail(err)
+	}
+	return a.launch(ctx, "garden/start-solo-fight", map[string]any{"leek_id": in.LeekID, "target_id": target}, in.Wait, picked)
+}
+
+// target renvoie la cible demandée, ou en tire une au sort parmi les adversaires
+// proposés sur path quand aucune n'est donnée (picked décrit alors le tirage).
+func (a *app) target(ctx context.Context, targetID int, path string) (int, *summary.Opponent, error) {
+	if targetID != 0 {
+		return targetID, nil, nil
+	}
+	ops, err := a.opponents(ctx, path)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(ops) == 0 {
+		return 0, nil, fmt.Errorf("aucun adversaire proposé par le matchmaking (%s)", path)
+	}
+	picked := ops[rand.IntN(len(ops))]
+	return picked.ID, &picked, nil
+}
+
+// launchResult est la réponse d'un lancement sans attente.
+type launchResult struct {
+	FightID    int    `json:"fight_id"`
+	Status     int    `json:"status"`
+	TargetID   int    `json:"target_id,omitempty"`
+	TargetName string `json:"target_name,omitempty"`
+}
+
+// launch poste le lancement, puis renvoie soit l'id et le status du combat, soit,
+// avec wait, son résumé une fois généré.
+func (a *app) launch(ctx context.Context, path string, payload map[string]any, wait bool, picked *summary.Opponent) (*mcp.CallToolResult, any, error) {
+	body, err := a.client.Post(ctx, path, payload)
+	if err != nil {
+		return fail(err)
+	}
+	id, err := summary.StartedFightID(body)
+	if err != nil {
+		return fail(err)
+	}
+	if wait {
+		report, err := a.waitForFight(ctx, id)
+		if err != nil {
+			return fail(err)
+		}
+		items, err := a.items.Items(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		s, err := summary.Fight(report, items, 0)
+		if err != nil {
+			return fail(err)
+		}
+		return ok(s)
+	}
+	report, err := a.fightReport(ctx, id)
+	if err != nil {
+		return fail(err)
+	}
+	status, err := summary.FightStatus(report)
+	if err != nil {
+		return fail(err)
+	}
+	out := launchResult{FightID: id, Status: status}
+	if picked != nil {
+		out.TargetID, out.TargetName = picked.ID, picked.Name
+	}
+	return ok(out)
+}
+
+// waitForFight sonde fight/get jusqu'à la fin de la génération, dans la limite
+// de pollDeadline, et met le rapport terminé en cache.
+func (a *app) waitForFight(ctx context.Context, id int) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, a.pollDeadline)
+	defer cancel()
+	for {
+		report, err := a.fightReport(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		status, err := summary.FightStatus(report)
+		if err != nil {
+			return nil, err
+		}
+		if status == summary.FightFinished {
+			return report, nil
+		}
+		select {
+		case <-time.After(a.pollInterval):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("combat %d toujours en génération après %s : réessayer get_fight id=%d", id, a.pollDeadline, id)
+		}
+	}
 }
