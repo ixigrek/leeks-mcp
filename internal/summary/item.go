@@ -7,6 +7,7 @@ type ItemSummary struct {
 	Kind       string            `json:"kind"`
 	ID         int               `json:"id"`
 	Item       int               `json:"item,omitempty"`
+	Template   int               `json:"template,omitempty"`
 	Name       string            `json:"name"`
 	Level      int               `json:"level"`
 	Cost       int               `json:"cost"`
@@ -30,11 +31,12 @@ func Item(m leekwars.Match) ItemSummary {
 			Area: w.Area, Los: w.Los, MaxUses: w.MaxUses, Effects: w.Effects,
 		}
 	}
-	// Pour une puce, l'id exposé est le template : seul identifiant utile côté API.
+	// Pour une puce, id comme dans get_leek, l'inventaire et les loadouts ; template
+	// est celui des rapports de combat.
 	c := m.Chip
 	cd := c.Cooldown
 	return ItemSummary{
-		Kind: "chip", ID: c.Template, Name: c.Name, Level: c.Level,
+		Kind: "chip", ID: c.ID, Template: c.Template, Name: c.Name, Level: c.Level,
 		Cost: c.Cost, MinRange: c.MinRange, MaxRange: c.MaxRange, LaunchType: c.LaunchType,
 		Area: c.Area, Los: c.Los, Cooldown: &cd, MaxUses: c.MaxUses, Effects: c.Effects,
 	}

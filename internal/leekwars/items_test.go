@@ -62,21 +62,24 @@ func TestChipByIDAndByTemplate(t *testing.T) {
 	}
 }
 
-// Find par nombre cherche une puce par id puis par template, comme pour les armes.
-func TestFindByNumericIDMatchesChipIDAndTemplate(t *testing.T) {
+// Find par nombre lit d'abord un identifiant d'objet (id de puce, item d'arme),
+// unique : 14 = leather_boots, pas rockfall (template 14).
+func TestFindByNumericIDPrefersItemIDs(t *testing.T) {
 	items := loadItems(t)
-	got := items.Find("174")
-	if len(got) != 1 || got[0].Chip == nil || got[0].Chip.Name != "manumission" {
-		t.Fatalf("Find(174) = %+v", got)
-	}
-	names := map[string]bool{}
-	for _, m := range items.Find("14") {
-		if m.Chip != nil {
-			names[m.Chip.Name] = true
+	for q, want := range map[string]string{"174": "manumission", "14": "leather_boots", "11": "vaccine", "42": "laser"} {
+		got := items.Find(q)
+		if len(got) != 1 {
+			t.Fatalf("Find(%s) = %+v, attendu %s seul", q, got, want)
 		}
-	}
-	if !names["leather_boots"] || !names["rockfall"] {
-		t.Fatalf("Find(14) = %v, attendu leather_boots et rockfall", names)
+		name := ""
+		if got[0].Weapon != nil {
+			name = got[0].Weapon.Name
+		} else {
+			name = got[0].Chip.Name
+		}
+		if name != want {
+			t.Fatalf("Find(%s) = %s, attendu %s", q, name, want)
+		}
 	}
 }
 
@@ -94,21 +97,12 @@ func TestFindByNameIgnoresCaseAndSeparators(t *testing.T) {
 	}
 }
 
-func TestFindByNumericIDReturnsWeaponsAndChips(t *testing.T) {
+// Sans objet de cet identifiant, Find se rabat sur les identifiants de rapport.
+func TestFindByNumericIDFallsBackToReportIDs(t *testing.T) {
 	items := loadItems(t)
-	// 42 est à la fois l'item du laser et l'id de l'arme sun_spear et peut-être une puce.
-	got := items.Find("42")
-	names := map[string]bool{}
-	for _, m := range got {
-		if m.Weapon != nil {
-			names[m.Weapon.Name] = true
-		}
-		if m.Chip != nil {
-			names["chip:"+m.Chip.Name] = true
-		}
-	}
-	if !names["laser"] || !names["sun_spear"] {
-		t.Fatalf("Find(42) = %v", names)
+	got := items.Find("61")
+	if len(got) != 1 || got[0].Chip == nil || got[0].Chip.Name != "venom" {
+		t.Fatalf("Find(61) = %+v", got)
 	}
 }
 

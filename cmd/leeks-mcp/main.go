@@ -97,7 +97,7 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_tree", Annotations: readOnly, Description: "IA en ligne de l'éleveur (nom, validité, lignes) et IA jouée par chaque poireau (leek_ais). Token requis."}, a.aiTree)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_read", Annotations: readOnly, Description: "Code d'une IA en ligne et sa VERSION ; avec file, compare seulement au fichier local (identique, VERSION en ligne et locale, première ligne divergente). Token requis."}, a.aiRead)
 	mcp.AddTool(s, &mcp.Tool{Name: "ai_push", Annotations: writes, Description: "Pousse des fichiers .leek locaux dans les IA en ligne de même nom (sans .leek), dans l'ordre _grp, _nasu, puis le reste : saute les fichiers déjà identiques, vérifie les problems de compilation, relit et compare octet par octet, signale une VERSION inchangée. S'arrête au premier échec. Pas de création d'IA. Token requis."}, a.aiPush)
-	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id."}, a.getItem)
+	mcp.AddTool(s, &mcp.Tool{Name: "get_item", Annotations: readOnly, Description: "Caractéristiques d'une arme ou d'une puce, par nom (clé anglaise de l'API, ex. laser) ou par id. Un id est d'abord cherché comme dans get_leek et les loadouts (item d'une arme, id d'une puce), puis comme dans les rapports de combat (id d'une arme, template d'une puce)."}, a.getItem)
 	return s
 }
 
@@ -135,7 +135,7 @@ type fightLogsArgs struct {
 }
 
 type itemArgs struct {
-	Query string `json:"query" jsonschema:"nom (ex. laser, sun spear) ou id numérique d'une arme ou d'une puce"`
+	Query string `json:"query" jsonschema:"nom (ex. laser, sun spear) ou id numérique (item d'une arme, id d'une puce)"`
 	rawFlag
 }
 

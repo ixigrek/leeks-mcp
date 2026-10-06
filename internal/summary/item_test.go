@@ -16,7 +16,8 @@ func TestItemFromWeaponKeepsBothIdentifiers(t *testing.T) {
 func TestItemFromChipHasCooldownAndNoItem(t *testing.T) {
 	it := items(t)
 	got := Item(it.Find("leather_boots")[0])
-	if got.Kind != "chip" || got.ID != 30 || got.Item != 0 || got.Cooldown == nil {
+	// id comme dans get_leek (14), template des rapports à part (30).
+	if got.Kind != "chip" || got.ID != 14 || got.Template != 30 || got.Item != 0 || got.Cooldown == nil {
 		t.Fatalf("Item(leather_boots) = %+v", got)
 	}
 }
