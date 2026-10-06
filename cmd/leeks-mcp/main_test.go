@@ -128,6 +128,7 @@ func sessionAPI(t *testing.T, token string, extra map[string][]string) (*mcp.Cli
 	a := newApp(leekwars.NewClient(api.URL, token))
 	a.pollInterval = 5 * time.Millisecond
 	a.pollDeadline = time.Second
+	a.launchInterval = time.Millisecond
 	server := a.server()
 	st, ct := mcp.NewInMemoryTransports()
 	ctx := context.Background()
@@ -193,14 +194,14 @@ func TestToolsAreAnnotated(t *testing.T) {
 		if tool.Annotations == nil {
 			t.Fatalf("outil %s sans annotations", tool.Name)
 		}
-		write := strings.HasPrefix(tool.Name, "start_") || strings.HasSuffix(tool.Name, "_loadout") || tool.Name == "ai_push"
+		write := strings.HasPrefix(tool.Name, "start_") || strings.HasSuffix(tool.Name, "_loadout") || tool.Name == "ai_push" || tool.Name == "run_batch"
 		if tool.Annotations.ReadOnlyHint == write {
 			t.Fatalf("outil %s : ReadOnlyHint = %v", tool.Name, tool.Annotations.ReadOnlyHint)
 		}
 	}
 }
 
-func TestListsEighteenTools(t *testing.T) {
+func TestListsNineteenTools(t *testing.T) {
 	cs := session(t, "tok")
 	res, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
@@ -211,7 +212,7 @@ func TestListsEighteenTools(t *testing.T) {
 		names[tool.Name] = true
 	}
 	want := []string{"get_leek", "get_farmer", "list_fights", "get_fight", "get_fight_logs", "get_item",
-		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight",
+		"get_garden", "start_solo_fight", "start_farmer_fight", "start_team_fight", "start_boss_fight", "run_batch",
 		"list_loadouts", "save_loadout", "apply_loadout", "delete_loadout", "ai_tree", "ai_read", "ai_push"}
 	if len(res.Tools) != len(want) {
 		t.Fatalf("%d outils, attendu %d : %v", len(res.Tools), len(want), names)

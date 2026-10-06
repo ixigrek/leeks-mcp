@@ -48,17 +48,19 @@ type app struct {
 	mu     sync.Mutex
 	fights map[int][]byte // rapports fight/get terminés déjà lus, par id
 
-	pollInterval time.Duration // sondage d'un combat en génération (wait: true)
-	pollDeadline time.Duration
+	pollInterval   time.Duration // sondage d'un combat en génération (wait: true)
+	pollDeadline   time.Duration
+	launchInterval time.Duration // entre deux lancements de run_batch
 }
 
 func newApp(client *leekwars.Client) *app {
 	return &app{
-		client:       client,
-		items:        leekwars.NewItemsLoader(client),
-		fights:       map[int][]byte{},
-		pollInterval: 2 * time.Second,
-		pollDeadline: 60 * time.Second,
+		client:         client,
+		items:          leekwars.NewItemsLoader(client),
+		fights:         map[int][]byte{},
+		pollInterval:   2 * time.Second,
+		pollDeadline:   60 * time.Second,
+		launchInterval: time.Second,
 	}
 }
 
@@ -87,6 +89,7 @@ func (a *app) server() *mcp.Server {
 	mcp.AddTool(s, &mcp.Tool{Name: "start_farmer_fight", Annotations: writes, Description: "Lance un combat d'éleveur (tous les poireaux) contre un éleveur proposé par le matchmaking (tiré au sort si target_id absent). Consomme un combat. Token requis."}, a.startFarmerFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "start_team_fight", Annotations: writes, Description: "Lance un combat d'équipe d'une composition contre une composition proposée par le matchmaking (tirée au sort si target_id absent). Consomme un combat d'équipe. Token requis."}, a.startTeamFight)
 	mcp.AddTool(s, &mcp.Tool{Name: "start_boss_fight", Annotations: writes, Description: "Lance un combat contre un boss (id ou nom) avec les poireaux donnés, par défaut tous ceux de l'éleveur. Consomme un combat. Token requis."}, a.startBossFight)
+	mcp.AddTool(s, &mcp.Tool{Name: "run_batch", Annotations: writes, Description: "Lance n combats (solo, farmer ou boss) au rythme d'un par seconde, attend leur fin et renvoie le bilan agrégé du poireau leek_id : victoires, nuls, défaites, tours et PV restants moyens, VERSION jouées (lues dans les logs du tour 1) et ids des défaites. Consomme n combats. Token requis."}, a.runBatch)
 	mcp.AddTool(s, &mcp.Tool{Name: "list_loadouts", Annotations: readOnly, Description: "Loadouts (ensembles d'équipement) de l'éleveur : armes, puces, composants, capital par stat ; et les armes et puces possédées. Token requis."}, a.listLoadouts)
 	mcp.AddTool(s, &mcp.Tool{Name: "save_loadout", Annotations: writes, Description: "Crée ou met à jour (set_id) un loadout : armes et puces par nom, capital total par stat. from_leek_id part du build actuel d'un poireau (composants compris). Ne change rien sur le poireau : voir apply_loadout. Token requis."}, a.saveLoadout)
 	mcp.AddTool(s, &mcp.Tool{Name: "apply_loadout", Annotations: writes, Description: "Applique un loadout à un poireau : équipe ses armes, puces et composants, et investit le capital supplémentaire (irréversible sans potion de restat). Réduire une stat exige use_restat. Token requis."}, a.applyLoadout)

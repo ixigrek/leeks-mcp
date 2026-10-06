@@ -237,21 +237,30 @@ func (a *app) startBossFight(ctx context.Context, _ *mcp.CallToolRequest, in bos
 	if !a.client.HasToken() {
 		return fail(errNoToken)
 	}
-	bossID, err := a.resolveBoss(ctx, in.Boss)
+	payload, err := a.bossPayload(ctx, in.Boss, in.Participants)
 	if err != nil {
 		return fail(err)
 	}
-	participants := in.Participants
+	return a.launch(ctx, "garden/start-boss-fight", payload, in.Wait, nil)
+}
+
+// bossPayload prépare le corps de garden/start-boss-fight : boss résolu par
+// resolveBoss, participants par défaut = tous les poireaux de l'éleveur du token.
+func (a *app) bossPayload(ctx context.Context, boss string, participants []int) (map[string]any, error) {
+	bossID, err := a.resolveBoss(ctx, boss)
+	if err != nil {
+		return nil, err
+	}
 	if len(participants) == 0 {
 		body, err := a.client.Get(ctx, "farmer/get-from-token")
 		if err != nil {
-			return fail(err)
+			return nil, err
 		}
 		if participants, err = summary.FarmerLeekIDs(body); err != nil {
-			return fail(err)
+			return nil, err
 		}
 	}
-	return a.launch(ctx, "garden/start-boss-fight", map[string]any{"boss_id": bossID, "participants": participants}, in.Wait, nil)
+	return map[string]any{"boss_id": bossID, "participants": participants}, nil
 }
 
 // resolveBoss accepte un id numérique ou un nom de boss/get-all (casse ignorée).
